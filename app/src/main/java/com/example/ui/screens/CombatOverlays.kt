@@ -1,0 +1,1302 @@
+package com.example.ui.screens
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import com.example.engine.CombatPhase
+import com.example.engine.CombatState
+import com.example.engine.ManaPaymentPreview
+import com.example.model.HandCardInstance
+import com.example.model.UnitOnBoard
+import com.example.ui.components.CardTile
+import com.example.ui.components.unitPortraitRes
+import com.example.ui.theme.AccentGold
+import com.example.ui.theme.AccentIce
+import com.example.ui.theme.AccentSpellMana
+import com.example.ui.theme.BgDeep
+import com.example.ui.theme.BorderGoldMuted
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.CinzelFontFamily
+import com.example.ui.theme.GameRadius
+import com.example.ui.theme.GameSpacing
+import com.example.ui.theme.InterFontFamily
+import com.example.ui.theme.PlusJakartaSansFamily
+import com.example.ui.theme.SemanticAttack
+import com.example.ui.theme.SemanticDanger
+import com.example.ui.theme.SemanticHeal
+import com.example.ui.theme.SurfaceBase
+import com.example.ui.theme.SurfaceElevated
+import com.example.ui.theme.SurfaceOverlay
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.statNumericStyle
+
+data class CombatEmoteOption(
+    val id: String,
+    val label: String,
+    val icon: ImageVector
+)
+
+val defaultCombatEmotes = listOf(
+    CombatEmoteOption("gg", "Đánh hay lắm", Icons.Outlined.ThumbUp),
+    CombatEmoteOption("watch", "Xem này", Icons.Outlined.Bolt),
+    CombatEmoteOption("shield", "Giữ vững đội hình", Icons.Outlined.Shield),
+    CombatEmoteOption("star", "Tính toán cả đấy", Icons.Outlined.StarOutline),
+    CombatEmoteOption("spark", "Rực cháy", Icons.Outlined.AutoAwesome),
+    CombatEmoteOption("cheer", "Trận hay quá", Icons.Outlined.EmojiEmotions)
+)
+
+@Composable
+fun ManaPaymentBreakdownBox(
+    preview: ManaPaymentPreview,
+    descFontSize: TextUnit,
+    modifier: Modifier = Modifier
+) {
+    val borderCol = when {
+        !preview.hasEnoughMana -> SemanticDanger
+        preview.isSpellLike && preview.spellManaUsed > 0 -> AccentSpellMana
+        preview.canPlay -> AccentIce.copy(alpha = 0.75f)
+        else -> BorderGoldMuted
+    }
+    val breakdownText = when {
+        !preview.hasEnoughMana -> buildString {
+            append(preview.blockReason ?: "Không đủ Năng Lượng")
+            if (!preview.isSpellLike) {
+                append(" • Không dùng NL Phép cho Quân")
+            }
+        }
+        preview.isSpellLike -> buildString {
+            val parts = mutableListOf<String>()
+            if (preview.spellManaUsed > 0) parts += "${preview.spellManaUsed} NL Phép"
+            if (preview.regularManaUsed > 0) parts += "${preview.regularManaUsed} NL Thường"
+            if (parts.isEmpty()) parts += "0 NL"
+            append("Trừ: ${parts.joinToString(" + ")}")
+            append(" • Còn ${preview.regularManaRemaining} NL Thường")
+        }
+        else -> "Chỉ trừ NL Thường: ${preview.regularManaUsed} NL • Còn ${preview.regularManaRemaining} NL Thường"
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("card_mana_breakdown_box"),
+        shape = RoundedCornerShape(GameRadius.control),
+        color = if (!preview.hasEnoughMana) Color(0xFF2B1318) else BgDeep,
+        border = BorderStroke(1.dp, borderCol)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = GameSpacing.sm, vertical = GameSpacing.xs),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (preview.isSpellLike) "Bài Phép (ưu tiên NL Phép)" else "Bài Quân / Tướng",
+                    fontFamily = PlusJakartaSansFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = (descFontSize.value * 0.88f).coerceAtLeast(9.5f).sp,
+                    color = if (preview.isSpellLike) AccentSpellMana else AccentIce
+                )
+                Text(
+                    text = "Chi phí: ${preview.cardCost} NL",
+                    style = statNumericStyle(
+                        (descFontSize.value * 0.92f).coerceAtLeast(10f).sp,
+                        if (preview.hasEnoughMana) AccentGold else SemanticDanger
+                    )
+                )
+            }
+            Text(
+                text = breakdownText,
+                fontFamily = PlusJakartaSansFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = (descFontSize.value * 0.88f).coerceAtLeast(9.5f).sp,
+                color = if (!preview.hasEnoughMana) Color(0xFFFCA5A5) else TextPrimary,
+                modifier = Modifier.testTag("card_mana_breakdown_text")
+            )
+            if (preview.hasEnoughMana && !preview.canPlay && preview.blockReason != null) {
+                Text(
+                    text = preview.blockReason,
+                    fontFamily = PlusJakartaSansFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = (descFontSize.value * 0.85f).coerceAtLeast(9f).sp,
+                    color = AccentGold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CardManaPreviewBanner(
+    cardName: String,
+    preview: ManaPaymentPreview,
+    descFontSize: TextUnit,
+    modifier: Modifier = Modifier
+) {
+    val summary = when {
+        !preview.hasEnoughMana -> "${preview.blockReason ?: "Không đủ Năng Lượng"}"
+        preview.isSpellLike -> buildString {
+            val parts = mutableListOf<String>()
+            if (preview.spellManaUsed > 0) parts += "${preview.spellManaUsed} Phép"
+            if (preview.regularManaUsed > 0) parts += "${preview.regularManaUsed} Thường"
+            if (parts.isEmpty()) parts += "0 NL"
+            append("Dùng ${parts.joinToString(" + ")} • Còn ${preview.regularManaRemaining} Thường")
+        }
+        else -> "Dùng ${preview.regularManaUsed} NL Thường • Còn ${preview.regularManaRemaining} Thường"
+    }
+    Surface(
+        modifier = modifier.testTag("card_mana_preview_banner"),
+        shape = RoundedCornerShape(10.dp),
+        color = if (!preview.hasEnoughMana) Color(0xEE2B1218) else Color(0xEE0F1B2E),
+        border = BorderStroke(
+            1.2.dp,
+            when {
+                !preview.hasEnoughMana -> SemanticDanger
+                preview.isSpellLike && preview.spellManaUsed > 0 -> AccentSpellMana
+                else -> AccentGold
+            }
+        ),
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "$cardName (${preview.cardCost} NL)",
+                fontFamily = PlusJakartaSansFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = descFontSize,
+                color = if (!preview.hasEnoughMana) Color(0xFFFCA5A5) else AccentGold
+            )
+            Text(
+                text = summary,
+                fontFamily = PlusJakartaSansFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = (descFontSize.value * 0.90f).coerceAtLeast(9.5f).sp,
+                color = if (!preview.hasEnoughMana) Color(0xFFFECACA) else TextPrimary
+            )
+        }
+    }
+}
+
+@Composable
+fun ManaDetailDialog(
+    combat: CombatState,
+    onDismiss: () -> Unit
+) {
+    val milestoneBonus = combat.championMilestoneManaBonus
+    val star2Unlocked = combat.starLevel >= 2
+    val star5Unlocked = combat.starLevel >= 5
+    val playerRegular = combat.playerMana.coerceIn(0, 10)
+    val playerRegularMax = combat.playerMaxMana.coerceIn(1, 10)
+    val playerSpell = combat.playerSpellMana.coerceIn(0, 3)
+    val enemyRegular = combat.enemyMana.coerceIn(0, 10)
+    val enemyRegularMax = combat.enemyMaxMana.coerceIn(1, 10)
+    val enemySpell = combat.enemySpellMana.coerceIn(0, 3)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag("mana_detail_dialog"),
+        containerColor = SurfaceBase,
+        shape = RoundedCornerShape(GameRadius.panel),
+        title = {
+            Text(
+                text = "Chi tiết Năng Lượng — Vòng ${combat.round}",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = AccentGold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)) {
+                Surface(
+                    shape = RoundedCornerShape(GameRadius.control),
+                    color = BgDeep,
+                    border = BorderStroke(1.dp, AccentIce.copy(alpha = 0.55f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(GameSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Năng Lượng Thường: $playerRegular / $playerRegularMax (Trần tổng tối đa: 10)",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = AccentIce
+                        )
+                        Text(
+                            text = "Thưởng Sức Mạnh Tướng (cộng mỗi lượt): +$milestoneBonus NL Thường (2★: ${if (star2Unlocked) "+1 đã mở" else "Chưa mở"} • 5★: ${if (star5Unlocked) "+1 đã mở" else "Chưa mở"})",
+                            fontFamily = InterFontFamily,
+                            fontSize = 11.5.sp,
+                            color = if (milestoneBonus > 0) AccentGold else TextSecondary
+                        )
+                        Text(
+                            text = "Quân & Tướng chỉ dùng NL Thường. Cuối vòng, lượng dư chuyển sang NL Phép (tối đa 3), phần thừa hơn sẽ mất.",
+                            fontFamily = InterFontFamily,
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(GameRadius.control),
+                    color = BgDeep,
+                    border = BorderStroke(1.dp, AccentSpellMana.copy(alpha = 0.65f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(GameSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Năng Lượng Phép: $playerSpell / 3 (tính riêng, ngoài giới hạn 10)",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = AccentSpellMana
+                        )
+                        Text(
+                            text = "Bảo lưu qua các vòng. Chỉ dùng cho Bài Phép / Lời Nguyền (ưu tiên trừ trước NL Thường) — không dùng cho Quân hoặc Tướng.",
+                            fontFamily = InterFontFamily,
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Đối thủ (${combat.encounterNode.enemyName}): $enemyRegular/$enemyRegularMax NL Thường • $enemySpell/3 NL Phép",
+                    fontFamily = InterFontFamily,
+                    fontSize = 11.5.sp,
+                    color = TextSecondary
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Đóng", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold, color = AccentGold)
+            }
+        }
+    )
+}
+
+@Composable
+fun HandCardInspectOverlay(
+    card: HandCardInstance,
+    canPlay: Boolean,
+    effectiveCost: Int,
+    detailOnly: Boolean,
+    minWidth: Dp,
+    maxWidth: Dp,
+    buttonHeight: Dp,
+    offsetY: Dp,
+    padH: Dp,
+    padV: Dp,
+    descFontSize: TextUnit,
+    onPlay: () -> Unit,
+    onDismiss: () -> Unit,
+    manaPreview: ManaPaymentPreview? = null,
+    isFleeting: Boolean = card.isFleeting
+) {
+    val resolvedCanPlay = canPlay && (manaPreview?.canPlay ?: true)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(60f)
+            .pointerInput(onDismiss) { detectTapGestures { onDismiss() } }
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(vertical = 8.dp)
+                .widthIn(min = minWidth, max = maxWidth)
+                .pointerInput(Unit) { detectTapGestures {} },
+            shape = RoundedCornerShape(GameRadius.panel),
+            color = SurfaceOverlay,
+            border = BorderStroke(
+                1.dp,
+                when {
+                    manaPreview != null && !manaPreview.hasEnoughMana -> SemanticDanger
+                    resolvedCanPlay -> AccentIce
+                    else -> BorderGoldMuted
+                }
+            ),
+            shadowElevation = 0.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(GameSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+                ) {
+                    CardTile(
+                        template = card.template,
+                        effectiveCost = effectiveCost,
+                        bonusPower = card.bonusPower,
+                        bonusHealth = card.bonusHealth,
+                        attachedItems = card.attachedItems,
+                        extraKeywords = card.extraKeywords,
+                        isFleeting = isFleeting,
+                        playable = resolvedCanPlay
+                    )
+                    if (manaPreview != null) {
+                        ManaPaymentBreakdownBox(
+                            preview = manaPreview,
+                            descFontSize = descFontSize
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+                ) {
+                    if (!detailOnly) {
+                        val playButtonLabel = when {
+                            resolvedCanPlay -> "Ra bài ($effectiveCost NL)"
+                            manaPreview != null && !manaPreview.hasEnoughMana -> "Không đủ Năng Lượng"
+                            else -> "Không thể ra bài"
+                        }
+                        Button(
+                            enabled = resolvedCanPlay,
+                            onClick = onPlay,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(maxOf(48.dp, buttonHeight))
+                                .testTag("confirm_play_card_button"),
+                            shape = RoundedCornerShape(GameRadius.control),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (resolvedCanPlay) AccentGold else SurfaceElevated,
+                                contentColor = BgDeep,
+                                disabledContainerColor = if (manaPreview != null && !manaPreview.hasEnoughMana) Color(0xFF3A1A20) else SurfaceElevated,
+                                disabledContentColor = if (manaPreview != null && !manaPreview.hasEnoughMana) Color(0xFFFCA5A5) else TextSecondary
+                            )
+                        ) {
+                            Text(
+                                text = playButtonLabel,
+                                fontFamily = PlusJakartaSansFamily,
+                                fontSize = descFontSize,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.height(maxOf(48.dp, buttonHeight))
+                    ) {
+                        Text(
+                            "Đóng",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextSecondary,
+                            fontSize = descFontSize
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UnitInspectOverlay(
+    unit: UnitOnBoard,
+    sidePadding: Dp,
+    minWidth: Dp,
+    maxWidth: Dp,
+    padH: Dp,
+    padV: Dp,
+    descFontSize: TextUnit,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(65f)
+            .clickable(onClick = onDismiss)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(if (unit.ownerIsPlayer) Alignment.CenterEnd else Alignment.CenterStart)
+                .padding(horizontal = sidePadding)
+                .widthIn(min = minWidth, max = maxWidth)
+                .clickable(enabled = false, onClick = {}),
+            shape = RoundedCornerShape(GameRadius.panel),
+            color = SurfaceOverlay,
+            border = BorderStroke(1.dp, BorderGoldMuted),
+            shadowElevation = 0.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(GameSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+            ) {
+                CardTile(
+                    template = unit.template,
+                    effectiveCost = unit.template.cost,
+                    bonusPower = unit.strikePower - unit.template.basePower,
+                    bonusHealth = unit.health - unit.template.baseHealth,
+                    attachedItems = unit.attachedItems,
+                    extraKeywords = unit.keywords,
+                    playable = true,
+                    isLeveledUp = unit.isLeveledUp
+                )
+                if (unit.equippedGearName != null) {
+                    Text(
+                        text = "Trang bị: ${unit.equippedGearName}",
+                        fontFamily = PlusJakartaSansFamily,
+                        fontSize = descFontSize,
+                        color = AccentGold
+                    )
+                }
+                if (unit.template.id == "card_fiora" && !unit.isSilenced) {
+                    Text(
+                        text = "Hạ gục: ${unit.killCount}/4 (Đủ 4 sẽ phá hủy Nhà Chính đối phương)",
+                        fontFamily = PlusJakartaSansFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = descFontSize,
+                        color = if (unit.killCount >= 3) SemanticDanger else AccentGold,
+                        modifier = Modifier.testTag("unit_inspect_fiora_kills")
+                    )
+                }
+                val statusKeywords = buildList {
+                    if (unit.hasBarrier) add(com.example.model.Keyword.BARRIER)
+                    if (unit.hasSpellShield) add(com.example.model.Keyword.SPELLSHIELD)
+                    if (unit.isFrostbitten) add(com.example.model.Keyword.FROSTBITE)
+                    if (unit.isStunned) add(com.example.model.Keyword.STUN)
+                    if (unit.isSilenced) add(com.example.model.Keyword.SILENCE)
+                    if (unit.isShackled) add(com.example.model.Keyword.SHACKLED)
+                }
+                if (statusKeywords.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(GameSpacing.xs)
+                    ) {
+                        statusKeywords.forEach { kw ->
+                            com.example.ui.components.KeywordIcon(
+                                keyword = kw,
+                                size = 14.dp,
+                                contentDescription = null
+                            )
+                        }
+                        Text(
+                            text = "Trạng thái: ${statusKeywords.joinToString { it.displayName }}",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontSize = descFontSize,
+                            color = AccentIce
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        "Đóng",
+                        fontFamily = PlusJakartaSansFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AccentGold,
+                        fontSize = descFontSize
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun EmotePickerOverlay(
+    safeStartPadding: Dp,
+    bottomPadding: Dp,
+    descFontSize: TextUnit,
+    onSelectEmote: (CombatEmoteOption) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(62f)
+            .clickable(onClick = onDismiss)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = safeStartPadding, bottom = bottomPadding)
+                .widthIn(max = 320.dp)
+                .clickable(enabled = false, onClick = {}),
+            shape = RoundedCornerShape(GameRadius.panel),
+            color = SurfaceOverlay,
+            border = BorderStroke(1.dp, BorderGoldMuted),
+            shadowElevation = 0.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(GameSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+            ) {
+                Text(
+                    text = "Gửi biểu cảm",
+                    fontFamily = PlusJakartaSansFamily,
+                    fontSize = descFontSize,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AccentGold
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(GameSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+                ) {
+                    defaultCombatEmotes.forEach { emote ->
+                        Surface(
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .clickable { onSelectEmote(emote) },
+                            shape = RoundedCornerShape(GameRadius.control),
+                            color = SurfaceElevated,
+                            border = BorderStroke(1.dp, BorderSubtle)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = GameSpacing.md, vertical = GameSpacing.sm),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(GameSpacing.xs)
+                            ) {
+                                Icon(
+                                    imageVector = emote.icon,
+                                    contentDescription = emote.label,
+                                    tint = AccentGold,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = emote.label,
+                                    fontFamily = PlusJakartaSansFamily,
+                                    fontSize = descFontSize,
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GraveyardDialog(
+    combat: CombatState,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceBase,
+        shape = RoundedCornerShape(GameRadius.panel),
+        title = {
+            Text(
+                text = "Nghĩa địa (${combat.playerGraveyard.size + combat.enemyGraveyard.size})",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = AccentGold
+            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 260.dp),
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+            ) {
+                item {
+                    Text(
+                        text = "Nghĩa địa của bạn (${combat.playerGraveyard.size})",
+                        fontFamily = PlusJakartaSansFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = AccentIce
+                    )
+                }
+                if (combat.playerGraveyard.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Chưa có đồng minh tử trận hoặc phép được thi triển.",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
+                    items(combat.playerGraveyard.reversed()) { card ->
+                        Text(
+                            text = "• ${card.name} (${card.type.displayName}, ${card.cost} NL)",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = TextPrimary
+                        )
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(GameSpacing.xs))
+                    HorizontalDivider(color = BorderSubtle)
+                    Spacer(modifier = Modifier.height(GameSpacing.xs))
+                    Text(
+                        text = "Nghĩa địa kẻ địch (${combat.enemyGraveyard.size})",
+                        fontFamily = PlusJakartaSansFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = SemanticDanger
+                    )
+                }
+                if (combat.enemyGraveyard.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Chưa có kẻ địch bị tiêu diệt hoặc phép được thi triển.",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
+                    items(combat.enemyGraveyard.reversed()) { card ->
+                        Text(
+                            text = "• ${card.name} (${card.type.displayName}, ${card.cost} NL)",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = TextPrimary
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Đóng", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold, color = AccentGold)
+            }
+        }
+    )
+}
+
+@Composable
+fun MatchInfoDialog(
+    combat: CombatState,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceBase,
+        shape = RoundedCornerShape(GameRadius.panel),
+        title = {
+            Text(
+                text = "Trạng thái trận đấu — Vòng ${combat.round}",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = AccentGold
+            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 280.dp),
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+            ) {
+                item {
+                    Text(
+                        text = "${combat.encounterNode.enemyName} — ${combat.encounterNode.enemyPowerTitle}",
+                        fontFamily = PlusJakartaSansFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = SemanticDanger
+                    )
+                    Text(
+                        text = combat.encounterNode.enemyPowerDescription.ifBlank { combat.encounterNode.subtitle },
+                        fontFamily = InterFontFamily,
+                        fontSize = 12.sp,
+                        color = TextPrimary
+                    )
+                    if (combat.enemyDrawPool.isNotEmpty()) {
+                        Text(
+                            text = "Bộ bài địch: Bản sao vô hạn (${combat.enemyDrawPool.size} loại bài)",
+                            fontFamily = InterFontFamily,
+                            fontSize = 11.5.sp,
+                            color = AccentGold
+                        )
+                    }
+                }
+                if (combat.activePowers.isNotEmpty()) {
+                    item {
+                        HorizontalDivider(color = BorderSubtle)
+                        Spacer(modifier = Modifier.height(GameSpacing.xs))
+                        Text(
+                            text = "Sức mạnh đang kích hoạt",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = AccentIce
+                        )
+                    }
+                    items(combat.activePowers) { power ->
+                        Text(
+                            text = "• ${power.name}: ${power.description}",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = TextPrimary
+                        )
+                    }
+                }
+                if (combat.equippedRelics.isNotEmpty()) {
+                    item {
+                        HorizontalDivider(color = BorderSubtle)
+                        Spacer(modifier = Modifier.height(GameSpacing.xs))
+                        Text(
+                            text = "Cổ vật đã trang bị",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = SemanticAttack
+                        )
+                    }
+                    items(combat.equippedRelics) { relic ->
+                        Text(
+                            text = "• ${relic.name}: ${relic.description}",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = TextPrimary
+                        )
+                    }
+                }
+                if (combat.mutators.isNotEmpty()) {
+                    item {
+                        HorizontalDivider(color = BorderSubtle)
+                        Spacer(modifier = Modifier.height(GameSpacing.xs))
+                        Text(
+                            text = "Hiệu ứng cuộc phiêu lưu",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = AccentSpellMana
+                        )
+                    }
+                    items(combat.mutators) { mut ->
+                        Text(
+                            text = "• ${mut.name}: ${mut.description}",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = TextPrimary
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Đóng", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold, color = AccentGold)
+            }
+        }
+    )
+}
+
+@Composable
+fun EnemyPowerDialog(
+    combat: CombatState,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceBase,
+        shape = RoundedCornerShape(GameRadius.panel),
+        title = {
+            Text(
+                text = combat.encounterNode.enemyPowerTitle.ifBlank { combat.encounterNode.enemyName },
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = SemanticDanger
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)) {
+                Text(
+                    text = combat.encounterNode.enemyPowerDescription.ifBlank { combat.encounterNode.subtitle },
+                    color = TextPrimary,
+                    fontFamily = InterFontFamily,
+                    fontSize = 13.sp
+                )
+                if (combat.mutators.isNotEmpty()) {
+                    HorizontalDivider(color = BorderSubtle)
+                    combat.mutators.forEach { mut ->
+                        Text(
+                            text = "${mut.name}: ${mut.description}",
+                            color = AccentIce,
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Đóng", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold, color = AccentGold)
+            }
+        }
+    )
+}
+
+@Composable
+fun CombatLogDialog(
+    combat: CombatState,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceBase,
+        shape = RoundedCornerShape(GameRadius.panel),
+        title = {
+            Text(
+                "Nhật ký giao tranh — Vòng ${combat.round}",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = AccentGold
+            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 260.dp),
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.xs)
+            ) {
+                items(combat.combatLog.takeLast(16).reversed()) { entry ->
+                    Text(
+                        "• $entry",
+                        fontFamily = InterFontFamily,
+                        fontSize = 12.sp,
+                        color = TextPrimary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Đóng", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold, color = AccentGold)
+            }
+        }
+    )
+}
+
+@Composable
+fun ForfeitConfirmDialog(
+    onConfirmForfeit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceBase,
+        shape = RoundedCornerShape(GameRadius.panel),
+        title = {
+            Text(
+                "Từ bỏ cuộc phiêu lưu?",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = SemanticDanger
+            )
+        },
+        text = {
+            Text(
+                "Rời trận giữa chừng sẽ hủy bỏ hành trình hiện tại.",
+                fontFamily = PlusJakartaSansFamily,
+                fontSize = 13.sp,
+                color = TextPrimary
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirmForfeit,
+                shape = RoundedCornerShape(GameRadius.control),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SemanticDanger,
+                    contentColor = TextPrimary
+                )
+            ) {
+                Text("Đầu hàng", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Ở lại", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold, color = AccentIce)
+            }
+        }
+    )
+}
+
+@Composable
+fun CombatGameOverDialog(
+    combat: CombatState,
+    revivesRemaining: Int,
+    onVictoryContinue: () -> Unit,
+    onUseRevive: () -> Unit,
+    onAcceptDefeat: () -> Unit
+) {
+    if (combat.phase != CombatPhase.GAME_OVER) return
+    val won = combat.playerWon == true
+    AlertDialog(
+        onDismissRequest = {},
+        containerColor = SurfaceBase,
+        shape = RoundedCornerShape(GameRadius.panel),
+        title = {
+            Text(
+                text = if (won) "Chiến thắng" else "Nhà Chính bị phá hủy",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = if (won) AccentGold else SemanticDanger
+            )
+        },
+        text = {
+            Text(
+                text = if (won) {
+                    "Bạn đã đánh bại ${combat.encounterNode.enemyName} và nhận +${combat.encounterNode.goldReward} Vàng."
+                } else if (revivesRemaining > 0) {
+                    "Nhà Chính đã sụp đổ, nhưng bạn còn $revivesRemaining lần hồi sinh. Khôi phục 50% máu Nhà Chính và đấu lại trận này."
+                } else {
+                    "Nhà Chính đã sụp đổ và bạn không còn lần hồi sinh nào."
+                },
+                color = TextPrimary,
+                fontFamily = PlusJakartaSansFamily,
+                fontSize = 13.sp
+            )
+        },
+        confirmButton = {
+            if (won) {
+                Button(
+                    onClick = onVictoryContinue,
+                    modifier = Modifier.testTag("combat_victory_continue_button"),
+                    shape = RoundedCornerShape(GameRadius.control),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentGold, contentColor = BgDeep)
+                ) {
+                    Text("Nhận phần thưởng", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold)
+                }
+            } else if (revivesRemaining > 0) {
+                Button(
+                    onClick = onUseRevive,
+                    modifier = Modifier.testTag("use_revive_button"),
+                    shape = RoundedCornerShape(GameRadius.control),
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticHeal, contentColor = BgDeep)
+                ) {
+                    Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(GameSpacing.xs))
+                    Text("Hồi sinh (50% máu)", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold)
+                }
+            } else {
+                Button(
+                    onClick = onAcceptDefeat,
+                    modifier = Modifier.testTag("accept_defeat_button"),
+                    shape = RoundedCornerShape(GameRadius.control),
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticDanger, contentColor = TextPrimary)
+                ) {
+                    Text("Kết thúc", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        },
+        dismissButton = {
+            if (!won && revivesRemaining > 0) {
+                TextButton(onClick = onAcceptDefeat) {
+                    Text("Chấp nhận thua", fontFamily = PlusJakartaSansFamily, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun ChampionLevelUpBannerOverlay(
+    unit: UnitOnBoard,
+    onDismiss: () -> Unit
+) {
+    val revealScale = remember(unit.instanceId) { Animatable(0.85f) }
+
+    LaunchedEffect(unit.instanceId) {
+        revealScale.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 200)
+        )
+    }
+
+    val portraitRes = unitPortraitRes(unit)
+    val subtitleText = when (unit.template.id) {
+        "card_anivia" -> "Khai Sáng — Phượng Hoàng Băng Thăng Hoa"
+        "card_jinx" -> "Siêu Quậy Bùng Nổ — Tên Lửa Khổng Lồ"
+        "card_lux" -> "Ánh Sáng Tối Thượng — Cầu Vồng Rực Rỡ"
+        "card_yasuo" -> "Tuyệt Kỹ Kiếm Gió — Bão Thép"
+        else -> "Sức mạnh anh hùng thức tỉnh (+${unit.template.levelUpPowerBonus}/+${unit.template.levelUpHealthBonus})"
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(88f)
+            .background(BgDeep.copy(alpha = 0.72f))
+            .testTag("champion_level_up_overlay")
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .widthIn(min = 240.dp, max = 328.dp)
+                .graphicsLayer {
+                    scaleX = revealScale.value
+                    scaleY = revealScale.value
+                },
+            shape = RoundedCornerShape(GameRadius.panel),
+            color = SurfaceBase,
+            border = BorderStroke(1.5.dp, AccentGold),
+            shadowElevation = 0.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(GameSpacing.lg),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(GameRadius.badge),
+                    color = SurfaceElevated,
+                    border = BorderStroke(1.dp, BorderGoldMuted)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = GameSpacing.md, vertical = GameSpacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(GameSpacing.xs)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.StarOutline,
+                            contentDescription = null,
+                            tint = AccentGold,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Thăng cấp • Cấp 2",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = AccentGold
+                        )
+                    }
+                }
+
+                if (portraitRes != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(128.dp)
+                            .clip(RoundedCornerShape(GameRadius.card))
+                            .border(1.5.dp, AccentIce, RoundedCornerShape(GameRadius.card))
+                    ) {
+                        Image(
+                            painter = painterResource(id = portraitRes),
+                            contentDescription = "${unit.template.name} Cấp 2",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(GameSpacing.sm),
+                            shape = RoundedCornerShape(GameRadius.badge),
+                            color = SurfaceOverlay,
+                            border = BorderStroke(1.dp, BorderGoldMuted)
+                        ) {
+                            Text(
+                                text = "Lv 2",
+                                fontFamily = PlusJakartaSansFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentIce,
+                                modifier = Modifier.padding(horizontal = GameSpacing.sm, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = unit.template.name,
+                    fontFamily = CinzelFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = TextPrimary,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = subtitleText,
+                    fontFamily = PlusJakartaSansFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = AccentIce,
+                    textAlign = TextAlign.Center
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(GameSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(GameRadius.badge),
+                        color = SurfaceElevated,
+                        border = BorderStroke(1.dp, SemanticAttack.copy(alpha = 0.7f))
+                    ) {
+                        Text(
+                            text = "${unit.strikePower} Công",
+                            style = statNumericStyle(12.sp, AccentGold),
+                            modifier = Modifier.padding(horizontal = GameSpacing.sm, vertical = GameSpacing.xs)
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(GameRadius.badge),
+                        color = SurfaceElevated,
+                        border = BorderStroke(1.dp, SemanticDanger.copy(alpha = 0.7f))
+                    ) {
+                        Text(
+                            text = "${unit.health} Máu",
+                            style = statNumericStyle(12.sp, TextPrimary),
+                            modifier = Modifier.padding(horizontal = GameSpacing.sm, vertical = GameSpacing.xs)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FollowerTransformChoiceDialog(
+    optionCardIds: List<String>,
+    onChoose: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {},
+        modifier = Modifier.testTag("follower_transform_dialog"),
+        containerColor = SurfaceOverlay,
+        titleContentColor = AccentGold,
+        title = {
+            Text(
+                text = "Sức Mạnh Vô Tận",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                color = AccentGold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+            ) {
+                Text(
+                    text = "Chọn 1 Tùy Tùng để biến hình và nhận +1|+1:",
+                    fontFamily = PlusJakartaSansFamily,
+                    fontSize = 13.sp,
+                    color = TextPrimary
+                )
+                optionCardIds.forEach { cardId ->
+                    val template = com.example.model.CardCatalog.getCard(cardId)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(GameRadius.card))
+                            .clickable { onChoose(cardId) }
+                            .testTag("transform_choice_$cardId")
+                    ) {
+                        CardTile(
+                            template = template,
+                            effectiveCost = template.cost,
+                            bonusPower = 1,
+                            bonusHealth = 1,
+                            playable = true
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
+}

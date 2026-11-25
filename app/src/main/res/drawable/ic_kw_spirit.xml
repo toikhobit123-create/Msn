@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Spirit: glowing petal / emerald-gold wisp -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M12,2.6c3.8,3.6 6.2,7.4 6.2,11.0c0,4.0 -2.8,7.2 -6.2,7.8c-3.4,-0.6 -6.2,-3.8 -6.2,-7.8C5.8,10.0 8.2,6.2 12,2.6z" />
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M12,7.8l1.6,4.0l3.6,1.2l-3.6,1.2L12,18.2l-1.6,-4.0L6.8,13.0l3.6,-1.2z" />
+</vector>

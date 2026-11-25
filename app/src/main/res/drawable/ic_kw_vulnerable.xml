@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Vulnerable: purple/crimson reticle hook / target -->
+    <path
+        android:fillColor="#C084FC"
+        android:pathData="M12,4.2a7.8,7.8 0 1,0 0,15.6a7.8,7.8 0 1,0 0,-15.6zM12,17.4a5.4,5.4 0 1,1 0,-10.8a5.4,5.4 0 1,1 0,10.8z" />
+    <path
+        android:fillColor="#F43F5E"
+        android:pathData="M11,2.0h2v4.4h-2zM11,17.6h2v4.4h-2zM2.0,11h4.4v2H2.0zM17.6,11h4.4v2h-4.4zM12,10.0a2.0,2.0 0 1,0 0,4.0a2.0,2.0 0 1,0 0,-4.0z" />
+</vector>

@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Support: golden right-pointing empowering arrow + ally crest -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M3.6,8.2l5.6,3.8l-5.6,3.8v-2.4H2.0v-2.8h1.6z" />
+    <path
+        android:fillColor="#FDE047"
+        android:pathData="M10.4,5.4l9.6,6.6l-9.6,6.6v-4.2H7.6v-4.8h2.8z" />
+</vector>

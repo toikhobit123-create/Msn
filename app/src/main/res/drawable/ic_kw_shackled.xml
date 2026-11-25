@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Cursed purple-crimson chain links for Shackled -->
+    <path
+        android:fillColor="#C084FC"
+        android:pathData="M9.4,14.6l-2.0,2.0c-1.2,1.2 -3.2,1.2 -4.4,0c-1.2,-1.2 -1.2,-3.2 0,-4.4l2.8,-2.8c1.2,-1.2 3.2,-1.2 4.4,0l0.8,0.8l-1.4,1.4l-0.8,-0.8c-0.4,-0.4 -1.2,-0.4 -1.6,0l-2.8,2.8c-0.4,0.4 -0.4,1.2 0,1.6c0.4,0.4 1.2,0.4 1.6,0l2.0,-2.0z" />
+    <path
+        android:fillColor="#E879F9"
+        android:pathData="M14.6,9.4l2.0,-2.0c1.2,-1.2 3.2,-1.2 4.4,0c1.2,1.2 1.2,3.2 0,4.4l-2.8,2.8c-1.2,1.2 -3.2,1.2 -4.4,0l-0.8,-0.8l1.4,-1.4l0.8,0.8c0.4,0.4 1.2,0.4 1.6,0l2.8,-2.8c0.4,-0.4 0.4,-1.2 0,-1.6c-0.4,-0.4 -1.2,-0.4 -1.6,0l-2.0,2.0z" />
+    <path
+        android:fillColor="#F43F5E"
+        android:pathData="M8.5,14.1l5.6,-5.6l1.4,1.4l-5.6,5.6z" />
+</vector>
