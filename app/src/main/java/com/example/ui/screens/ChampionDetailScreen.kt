@@ -1107,9 +1107,7 @@ private fun StarPowerFlatRow(
                 )
                 Text(
                     text = description,
-                    style = interBodyStyle(11.5.sp, if (unlocked) ParchmentWhite else MutedSilver),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    style = interBodyStyle(11.5.sp, if (unlocked) ParchmentWhite else MutedSilver)
                 )
                 if (costText != null) {
                     Text(
@@ -1408,8 +1406,6 @@ private fun ChampionRightCardShowcase(
                         Text(
                             text = "${item.name}: ${item.description}",
                             style = interBodyStyle(9.5.sp, ParchmentWhite),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }

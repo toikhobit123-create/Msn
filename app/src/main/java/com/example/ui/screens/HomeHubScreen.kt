@@ -455,9 +455,7 @@ fun HomeHubScreen(
                                 )
                                 Text(
                                     text = activeStarPower.description,
-                                    style = uiBodyStyle(11.5.sp, TextSecondary),
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
+                                    style = uiBodyStyle(11.5.sp, TextSecondary)
                                 )
                             }
                         }

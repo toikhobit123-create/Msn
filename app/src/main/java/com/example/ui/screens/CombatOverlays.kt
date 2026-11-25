@@ -507,60 +507,67 @@ fun UnitInspectOverlay(
                 modifier = Modifier.padding(GameSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
             ) {
-                CardTile(
-                    template = unit.template,
-                    effectiveCost = unit.template.cost,
-                    bonusPower = unit.strikePower - unit.template.basePower,
-                    bonusHealth = unit.health - unit.template.baseHealth,
-                    attachedItems = unit.attachedItems,
-                    extraKeywords = unit.keywords,
-                    playable = true,
-                    isLeveledUp = unit.isLeveledUp
-                )
-                if (unit.equippedGearName != null) {
-                    Text(
-                        text = "Trang bị: ${unit.equippedGearName}",
-                        fontFamily = PlusJakartaSansFamily,
-                        fontSize = descFontSize,
-                        color = AccentGold
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(GameSpacing.sm)
+                ) {
+                    CardTile(
+                        template = unit.template,
+                        effectiveCost = unit.template.cost,
+                        bonusPower = unit.strikePower - unit.template.basePower,
+                        bonusHealth = unit.health - unit.template.baseHealth,
+                        attachedItems = unit.attachedItems,
+                        extraKeywords = unit.keywords,
+                        playable = true,
+                        isLeveledUp = unit.isLeveledUp
                     )
-                }
-                if (unit.template.id == "card_fiora" && !unit.isSilenced) {
-                    Text(
-                        text = "Hạ gục: ${unit.killCount}/4 (Đủ 4 sẽ phá hủy Nhà Chính đối phương)",
-                        fontFamily = PlusJakartaSansFamily,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = descFontSize,
-                        color = if (unit.killCount >= 3) SemanticDanger else AccentGold,
-                        modifier = Modifier.testTag("unit_inspect_fiora_kills")
-                    )
-                }
-                val statusKeywords = buildList {
-                    if (unit.hasBarrier) add(com.example.model.Keyword.BARRIER)
-                    if (unit.hasSpellShield) add(com.example.model.Keyword.SPELLSHIELD)
-                    if (unit.isFrostbitten) add(com.example.model.Keyword.FROSTBITE)
-                    if (unit.isStunned) add(com.example.model.Keyword.STUN)
-                    if (unit.isSilenced) add(com.example.model.Keyword.SILENCE)
-                    if (unit.isShackled) add(com.example.model.Keyword.SHACKLED)
-                }
-                if (statusKeywords.isNotEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(GameSpacing.xs)
-                    ) {
-                        statusKeywords.forEach { kw ->
-                            com.example.ui.components.KeywordIcon(
-                                keyword = kw,
-                                size = 14.dp,
-                                contentDescription = null
-                            )
-                        }
+                    if (unit.equippedGearName != null) {
                         Text(
-                            text = "Trạng thái: ${statusKeywords.joinToString { it.displayName }}",
+                            text = "Trang bị: ${unit.equippedGearName}",
                             fontFamily = PlusJakartaSansFamily,
                             fontSize = descFontSize,
-                            color = AccentIce
+                            color = AccentGold
                         )
+                    }
+                    if (unit.template.id == "card_fiora" && !unit.isSilenced) {
+                        Text(
+                            text = "Hạ gục: ${unit.killCount}/4 (Đủ 4 sẽ phá hủy Nhà Chính đối phương)",
+                            fontFamily = PlusJakartaSansFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = descFontSize,
+                            color = if (unit.killCount >= 3) SemanticDanger else AccentGold,
+                            modifier = Modifier.testTag("unit_inspect_fiora_kills")
+                        )
+                    }
+                    val statusKeywords = buildList {
+                        if (unit.hasBarrier) add(com.example.model.Keyword.BARRIER)
+                        if (unit.hasSpellShield) add(com.example.model.Keyword.SPELLSHIELD)
+                        if (unit.isFrostbitten) add(com.example.model.Keyword.FROSTBITE)
+                        if (unit.isStunned) add(com.example.model.Keyword.STUN)
+                        if (unit.isSilenced) add(com.example.model.Keyword.SILENCE)
+                        if (unit.isShackled) add(com.example.model.Keyword.SHACKLED)
+                    }
+                    if (statusKeywords.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(GameSpacing.xs)
+                        ) {
+                            statusKeywords.forEach { kw ->
+                                com.example.ui.components.KeywordIcon(
+                                    keyword = kw,
+                                    size = 14.dp,
+                                    contentDescription = null
+                                )
+                            }
+                            Text(
+                                text = "Trạng thái: ${statusKeywords.joinToString { it.displayName }}",
+                                fontFamily = PlusJakartaSansFamily,
+                                fontSize = descFontSize,
+                                color = AccentIce
+                            )
+                        }
                     }
                 }
                 TextButton(

@@ -74,6 +74,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -422,9 +423,7 @@ fun CardTile(
                                 fontFamily = InterFontFamily,
                                 fontSize = 12.sp,
                                 lineHeight = 16.sp,
-                                color = TextPrimary,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
+                                color = TextPrimary
                             )
                         }
                     }
@@ -666,6 +665,39 @@ fun championPortraitRes(cardId: String, isLeveledUp: Boolean): Int? =
 fun unitPortraitRes(unit: UnitOnBoard): Int? =
     championPortraitRes(unit.template.id, unit.isLeveledUp)
 
+@Composable
+private fun AutoShrinkText(
+    text: String,
+    maxFontSize: TextUnit,
+    minFontSize: TextUnit,
+    color: Color,
+    fontFamily: FontFamily? = null,
+    maxLines: Int = Int.MAX_VALUE,
+    modifier: Modifier = Modifier
+) {
+    val startSize = maxOf(maxFontSize.value, minFontSize.value).sp
+    var currentFontSize by remember(text, startSize, minFontSize, maxLines) { mutableStateOf(startSize) }
+
+    Text(
+        text = text,
+        fontFamily = fontFamily,
+        fontSize = currentFontSize,
+        lineHeight = currentFontSize * 1.16f,
+        color = color,
+        maxLines = maxLines,
+        overflow = if (currentFontSize.value <= minFontSize.value) TextOverflow.Ellipsis else TextOverflow.Clip,
+        onTextLayout = { textLayoutResult ->
+            if (textLayoutResult.hasVisualOverflow && currentFontSize.value > minFontSize.value) {
+                val nextSize = (currentFontSize.value - 0.5f).coerceAtLeast(minFontSize.value)
+                if (nextSize < currentFontSize.value) {
+                    currentFontSize = nextSize.sp
+                }
+            }
+        },
+        modifier = modifier
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HandCardView(
@@ -857,7 +889,9 @@ fun HandCardView(
                         } else null
 
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             if (kwHeader != null) {
@@ -885,14 +919,14 @@ fun HandCardView(
                                 }
                                 HorizontalDivider(thickness = 0.6.dp, color = BorderSubtle.copy(alpha = 0.7f))
                             }
-                            Text(
+                            AutoShrinkText(
                                 text = template.description,
                                 fontFamily = InterFontFamily,
-                                fontSize = infoFontSize,
-                                lineHeight = infoLineHeight,
+                                maxFontSize = infoFontSize,
+                                minFontSize = 6.5.sp,
                                 color = TextPrimary.copy(alpha = 0.90f),
-                                maxLines = if (isShowcasePreview) 4 else 3,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 6,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
 
