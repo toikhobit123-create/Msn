@@ -6,6 +6,7 @@ import com.example.model.CardEffectType
 import com.example.model.CardTemplate
 import com.example.model.CardType
 import com.example.model.ChampionLoadout
+import com.example.model.EffectScope
 import com.example.model.HandCardInstance
 import com.example.model.ItemTemplate
 import com.example.model.Keyword
@@ -16,6 +17,8 @@ import com.example.model.Region
 import com.example.model.RelicTemplate
 import com.example.model.RunState
 import com.example.model.SpellSpeed
+import com.example.model.TargetSide
+import com.example.model.TargetType
 import com.example.model.UnitOnBoard
 import java.util.UUID
 import kotlin.random.Random
@@ -194,24 +197,14 @@ object CombatEngine {
     }
 
     /**
-     * Kiểm tra bài phép Siêu Tốc có mô tả gây sát thương trực tiếp lên Nhà Chính địch hay không.
+     * Kiểm tra bài phép Siêu Tốc gây sát thương trực tiếp lên Nhà Chính địch.
      * Những lá này được thi triển ngay lập tức mà không cần mở chế độ chọn mục tiêu.
      */
-    fun isBurstDirectNexusDamageSpell(card: CardTemplate): Boolean {
-        if (card.type != CardType.SPELL || card.spellSpeed != SpellSpeed.BURST) return false
-        return when (card.effectType) {
-            CardEffectType.DEAL_DAMAGE_NEXUS,
-            CardEffectType.DEAL_DAMAGE_UNIT_AND_NEXUS -> true
-            CardEffectType.DEAL_DAMAGE_ANY -> {
-                val desc = card.description.lowercase()
-                desc.contains("nhà chính") &&
-                    !desc.contains("bài quân") &&
-                    !desc.contains("kẻ địch") &&
-                    !desc.contains("đồng minh")
-            }
-            else -> false
-        }
-    }
+    fun isBurstDirectNexusDamageSpell(card: CardTemplate): Boolean =
+        card.type == CardType.SPELL &&
+            card.spellSpeed == SpellSpeed.BURST &&
+            card.targeting.targetType == TargetType.NEXUS &&
+            card.targeting.scope == EffectScope.ENEMY_NEXUS
 
     /**
      * Kiểm tra bài phép có bắt buộc người chơi chỉ định mục tiêu trước khi thi triển hay không.
@@ -219,64 +212,37 @@ object CombatEngine {
     fun requiresPlayerTarget(card: CardTemplate): Boolean {
         if (card.type != CardType.SPELL && card.type != CardType.CURSE) return false
         if (isBurstDirectNexusDamageSpell(card)) return false
-        return when (card.effectType) {
-            CardEffectType.DEAL_DAMAGE_ANY,
-            CardEffectType.STUN_TARGET,
-            CardEffectType.FROSTBITE_TARGET,
-            CardEffectType.FROSTBITE_TWO,
-            CardEffectType.ANIVIA_CHAMPION_SPELL,
-            CardEffectType.RECALL_OR_STUN,
-            CardEffectType.GIVE_BARRIER_AND_DRAW,
-            CardEffectType.RALLY_AND_SHIELD,
-            CardEffectType.SINGLE_COMBAT_STRIKE,
-            CardEffectType.DRAIN,
-            CardEffectType.FREE_ATTACK,
-            CardEffectType.SACRIFICE_DAMAGE,
-            CardEffectType.POSSESS_UNIT,
-            CardEffectType.STANCE_SWAP_EFFECT -> true
-            else -> false
-        }
+        return card.targeting.requiresManualTarget
     }
 
     /**
      * Số lượng mục tiêu tối đa mà người chơi được chọn khi thi triển bài phép.
      */
-    fun requiredPlayerTargetCount(card: CardTemplate): Int = when {
-        !requiresPlayerTarget(card) -> 0
-        card.effectType == CardEffectType.FROSTBITE_TWO ||
-            card.effectType == CardEffectType.ANIVIA_CHAMPION_SPELL ||
-            card.effectType == CardEffectType.SINGLE_COMBAT_STRIKE ||
-            card.effectType == CardEffectType.SACRIFICE_DAMAGE -> 2
-        else -> 1
-    }
+    fun requiredPlayerTargetCount(card: CardTemplate): Int =
+        if (requiresPlayerTarget(card)) card.targeting.targetCount else 0
 
     /**
-     * Trả về cặp (enemyTargetIds, allyTargetIds) hợp lệ để người chơi chọn mục tiêu cho bài phép.
+     * Trả về cặp (enemyTargetIds, allyTargetIds) hợp lệ để người chơi chọn mục tiêu cho lá bài.
      */
     fun getValidSpellTargetIds(state: CombatState, card: CardTemplate): Pair<Set<String>, Set<String>> {
-        val enemyIds = state.enemyBoard.filter { it.template.type != CardType.LANDMARK }.map { it.instanceId }.toSet()
-        val allyIds = state.playerBoard.filter { it.template.type != CardType.LANDMARK }.map { it.instanceId }.toSet()
-        return when (card.effectType) {
-            CardEffectType.STUN_TARGET,
-            CardEffectType.FROSTBITE_TARGET,
-            CardEffectType.FROSTBITE_TWO,
-            CardEffectType.ANIVIA_CHAMPION_SPELL,
-            CardEffectType.RECALL_OR_STUN,
-            CardEffectType.POSSESS_UNIT -> enemyIds to emptySet()
-
-            CardEffectType.GIVE_BARRIER_AND_DRAW,
-            CardEffectType.RALLY_AND_SHIELD,
-            CardEffectType.STANCE_SWAP_EFFECT -> emptySet<String>() to allyIds
-
-            CardEffectType.FREE_ATTACK ->
-                emptySet<String>() to state.playerBoard.filter { it.template.type != CardType.LANDMARK && it.canAttack }.map { it.instanceId }.toSet()
-
-            CardEffectType.DEAL_DAMAGE_ANY,
-            CardEffectType.DRAIN,
-            CardEffectType.SINGLE_COMBAT_STRIKE,
-            CardEffectType.SACRIFICE_DAMAGE -> enemyIds to allyIds
-
-            else -> emptySet<String>() to emptySet()
+        val spec = card.targeting
+        if (!spec.requiresManualTarget) return emptySet<String>() to emptySet()
+        val enemyIds = state.enemyBoard
+            .filter { it.template.type != CardType.LANDMARK }
+            .map { it.instanceId }
+            .toSet()
+        val allyIds = state.playerBoard
+            .filter {
+                it.template.type != CardType.LANDMARK &&
+                    (!spec.requireCanAttack || it.canAttack)
+            }
+            .map { it.instanceId }
+            .toSet()
+        return when (spec.targetSide) {
+            TargetSide.ENEMY -> enemyIds to emptySet()
+            TargetSide.ALLY -> emptySet<String>() to allyIds
+            TargetSide.ANY, TargetSide.ALLY_AND_ENEMY -> enemyIds to allyIds
+            TargetSide.NONE -> emptySet<String>() to emptySet()
         }
     }
 
@@ -5376,13 +5342,8 @@ object CombatEngine {
     internal fun isAllyOnlySpell(state: CombatState, card: CardTemplate): Boolean {
         val (enemies, allies) = getValidSpellTargetIds(state, card)
         return (enemies.isEmpty() && allies.isNotEmpty()) ||
-            card.effectType == CardEffectType.STANCE_SWAP_EFFECT ||
-            card.effectType == CardEffectType.GIVE_BARRIER_AND_DRAW ||
-            card.effectType == CardEffectType.RALLY_AND_SHIELD ||
+            card.targeting.targetSide == TargetSide.ALLY ||
             card.effectType == CardEffectType.FREE_ATTACK ||
-            card.effectType == CardEffectType.BREAKOUT_EFFECT ||
-            card.effectType == CardEffectType.ASTRAL_DIFFUSION_EFFECT ||
-            card.effectType == CardEffectType.BUFF_ALLIES_STATS ||
             card.effectType == CardEffectType.BUFF_ALLY_STATS
     }
 

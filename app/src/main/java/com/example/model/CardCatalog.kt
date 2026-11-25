@@ -264,7 +264,14 @@ object CardCatalog {
         CardTemplate(
             id = "card_brightsteel_protector", name = "Hộ Vệ Thép Sáng", region = Region.DEMACIA, type = CardType.UNIT,
             cost = 2, basePower = 3, baseHealth = 2, keywords = setOf(Keyword.SHARPSIGHT),
-            description = "Tinh Mắt. Xuất Trận: Ban Lá Chắn cho đồng minh mạnh nhất trong vòng này."
+            description = "Tinh Mắt. Xuất Trận: Ban Lá Chắn cho đồng minh mạnh nhất trong vòng này.",
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                allowFewerTargets = true,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_laurent_protege", name = "Đệ Tử Gia Tộc Laurent", region = Region.DEMACIA, type = CardType.UNIT,
@@ -325,7 +332,13 @@ object CardCatalog {
             id = "card_icevale_archer", name = "Cung Thủ Thung Lũng Băng", region = Region.FRELJORD, type = CardType.UNIT,
             cost = 2, basePower = 3, baseHealth = 1, keywords = setOf(Keyword.BRASH),
             description = "Hùng Hổ. Xuất Trận: Đóng Băng kẻ địch mạnh nhất.",
-            effectType = CardEffectType.FROSTBITE_TARGET, effectValue = 1
+            effectType = CardEffectType.FROSTBITE_TARGET, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 0,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_ruthless_raider", name = "Nữ Tặc Tàn Nhẫn", region = Region.FRELJORD, type = CardType.UNIT,
@@ -417,87 +430,172 @@ object CardCatalog {
             id = "card_get_excited", name = "Hưng Phấn Tột Độ!", region = Region.PILTOVER_ZAUN, type = CardType.SPELL,
             cost = 3, spellSpeed = SpellSpeed.FAST, keywords = setOf(Keyword.ELEMENTAL),
             description = "Nhanh. Gây 3 sát thương lên 1 bài quân địch hoặc Nhà Chính địch.",
-            effectType = CardEffectType.DEAL_DAMAGE_ANY, effectValue = 3
+            effectType = CardEffectType.DEAL_DAMAGE_ANY, effectValue = 3,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT_OR_NEXUS,
+                targetSide = TargetSide.ANY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_mystic_shot", name = "Phát Bắn Thần Bí", region = Region.PILTOVER_ZAUN, type = CardType.SPELL,
             cost = 2, spellSpeed = SpellSpeed.FAST,
             description = "Nhanh. Gây 2 sát thương lên Nhà Chính địch hoặc kẻ địch yếu nhất.",
-            effectType = CardEffectType.DEAL_DAMAGE_ANY, effectValue = 2
+            effectType = CardEffectType.DEAL_DAMAGE_ANY, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT_OR_NEXUS,
+                targetSide = TargetSide.ANY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_super_mega_rocket", name = "Tên Lửa Đạn Đạo Siêu Khủng Khiếp!", region = Region.PILTOVER_ZAUN, type = CardType.SPELL,
             cost = 1, spellSpeed = SpellSpeed.SLOW, keywords = setOf(Keyword.FLEETING),
             description = "Chậm, Chóng Tàn. Gây 4 sát thương lên Nhà Chính địch và 2 lên toàn bộ bài quân địch.",
             effectType = CardEffectType.DEAL_DAMAGE_UNIT_AND_NEXUS, effectValue = 4,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 0,
+                scope = EffectScope.ALL_ENEMIES
+            ),
             isCollectibleReward = false
         ),
         CardTemplate(
             id = "card_prismatic_barrier", name = "Lá Chắn Lăng Kính", region = Region.DEMACIA, type = CardType.SPELL,
             cost = 2, spellSpeed = SpellSpeed.BURST,
             description = "Siêu Tốc. Ban Lá Chắn cho đồng minh mạnh nhất vòng này và rút 1 lá.",
-            effectType = CardEffectType.GIVE_BARRIER_AND_DRAW, effectValue = 1
+            effectType = CardEffectType.GIVE_BARRIER_AND_DRAW, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_golden_aegis", name = "Khiên Vàng Tập Hợp", region = Region.DEMACIA, type = CardType.SPELL,
             cost = 4, spellSpeed = SpellSpeed.SLOW,
             description = "Chậm. Ban Lá Chắn cho đồng minh mạnh nhất và Tập Hợp!",
-            effectType = CardEffectType.RALLY_AND_SHIELD, effectValue = 1
+            effectType = CardEffectType.RALLY_AND_SHIELD, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_final_spark", name = "Cầu Vồng Tối Thượng", region = Region.DEMACIA, type = CardType.SPELL,
             cost = 0, spellSpeed = SpellSpeed.FAST, keywords = setOf(Keyword.OVERWHELM, Keyword.FLEETING),
             description = "Nhanh, Áp Đảo, Chóng Tàn. Gây 4 sát thương lên kẻ địch và sát thương dư lên Nhà Chính.",
             effectType = CardEffectType.DEAL_DAMAGE_UNIT_AND_NEXUS, effectValue = 4,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 0,
+                scope = EffectScope.ALL_ENEMIES
+            ),
             isCollectibleReward = false
         ),
         CardTemplate(
             id = "card_steel_tempest", name = "Bão Thép", region = Region.IONIA, type = CardType.SPELL,
             cost = 2, spellSpeed = SpellSpeed.FAST,
             description = "Nhanh. Làm Choáng kẻ địch mạnh nhất.",
-            effectType = CardEffectType.STUN_TARGET, effectValue = 1
+            effectType = CardEffectType.STUN_TARGET, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_concussive_palm", name = "Bàn Tay Sấm Sét", region = Region.IONIA, type = CardType.SPELL,
             cost = 4, spellSpeed = SpellSpeed.FAST,
             description = "Nhanh. Làm Choáng 1 kẻ địch và triệu hồi Đuôi Rồng 3|2.",
-            effectType = CardEffectType.STUN_TARGET, effectValue = 2
+            effectType = CardEffectType.STUN_TARGET, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_flash_freeze", name = "Đóng Băng Tức Thì", region = Region.FRELJORD, type = CardType.SPELL,
             cost = 3, spellSpeed = SpellSpeed.BURST, keywords = setOf(Keyword.ELEMENTAL),
             description = "Siêu Tốc, Nguyên Tố. Đóng Băng kẻ địch mạnh nhất.",
-            effectType = CardEffectType.FROSTBITE_TARGET, effectValue = 1
+            effectType = CardEffectType.FROSTBITE_TARGET, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            )
         ),
         CardTemplate(
             id = "card_single_combat", name = "Đấu Tay Đôi", region = Region.DEMACIA, type = CardType.SPELL,
             cost = 2, spellSpeed = SpellSpeed.FAST,
             description = "Nhanh. Đồng minh mạnh nhất và kẻ địch yếu nhất đánh nhau.",
-            effectType = CardEffectType.SINGLE_COMBAT_STRIKE, effectValue = 1
+            effectType = CardEffectType.SINGLE_COMBAT_STRIKE, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT_PAIR,
+                targetSide = TargetSide.ALLY_AND_ENEMY,
+                targetCount = 2,
+                scope = EffectScope.MULTI_TARGET
+            )
         ),
         CardTemplate(
             id = "card_time_trick", name = "Thủ Thuật Thời Gian", region = Region.PILTOVER_ZAUN, type = CardType.SPELL,
             cost = 2, spellSpeed = SpellSpeed.FOCUS,
             description = "Tập Trung. Tiên Đoán và Rút 1 lá.",
-            effectType = CardEffectType.PREDICT_DRAW, effectValue = 1
+            effectType = CardEffectType.PREDICT_DRAW, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.NONE,
+                targetCount = 0,
+                scope = EffectScope.NONE
+            )
         ),
         CardTemplate(
             id = "card_bard_chimes", name = "Mạch Lạc Vũ Trụ", region = Region.TARGON, type = CardType.SPELL,
             cost = 2, spellSpeed = SpellSpeed.FOCUS,
             description = "Tập Trung. Gieo 3 Chuông vào bộ bài và ban +1|+1 cho đồng minh.",
-            effectType = CardEffectType.PLANT_CHIMES, effectValue = 3
+            effectType = CardEffectType.PLANT_CHIMES, effectValue = 3,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ALLY,
+                targetCount = 0,
+                scope = EffectScope.ALL_ALLIES
+            )
         ),
         CardTemplate(
             id = "card_teemo_puffcaps", name = "Đám Mây Nấm Độc", region = Region.PILTOVER_ZAUN, type = CardType.SPELL,
             cost = 1, spellSpeed = SpellSpeed.BURST,
             description = "Siêu Tốc. Gieo 5 Bẫy Nấm Độc vào bộ bài đối thủ.",
-            effectType = CardEffectType.PLANT_PUFFCAPS, effectValue = 5
+            effectType = CardEffectType.PLANT_PUFFCAPS, effectValue = 5,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 0,
+                scope = EffectScope.NONE
+            )
         ),
         CardTemplate(
             id = "card_harsh_winds", name = "Cuồng Phong", region = Region.FRELJORD, type = CardType.SPELL,
             cost = 5, spellSpeed = SpellSpeed.BURST, keywords = setOf(Keyword.ELEMENTAL),
             description = "Siêu Tốc, Nguyên Tố. Đóng Băng tối đa 2 kẻ địch, sau đó rút 1 lá.",
             effectType = CardEffectType.FROSTBITE_TWO, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 2,
+                allowFewerTargets = true,
+                scope = EffectScope.MULTI_TARGET
+            ),
             rarity = Rarity.RARE
         ),
         CardTemplate(
@@ -505,6 +603,13 @@ object CardCatalog {
             cost = 5, spellSpeed = SpellSpeed.BURST, keywords = setOf(Keyword.ELEMENTAL),
             description = "Siêu Tốc, Nguyên Tố. Đóng Băng tối đa 2 kẻ địch, sau đó tráo 1 Anivia vào bộ bài.",
             effectType = CardEffectType.ANIVIA_CHAMPION_SPELL, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 2,
+                allowFewerTargets = true,
+                scope = EffectScope.MULTI_TARGET
+            ),
             isCollectibleReward = false, rarity = Rarity.LEGENDARY
         ),
         CardTemplate(
@@ -512,6 +617,12 @@ object CardCatalog {
             cost = 2, spellSpeed = SpellSpeed.BURST, keywords = setOf(Keyword.ELEMENTAL),
             description = "Siêu Tốc, Nguyên Tố. Đóng Băng 1 kẻ địch.",
             effectType = CardEffectType.FROSTBITE_TARGET, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
             isCollectibleReward = false, rarity = Rarity.COMMON
         ),
         CardTemplate(
@@ -519,6 +630,12 @@ object CardCatalog {
             cost = 7, spellSpeed = SpellSpeed.SLOW, keywords = setOf(Keyword.ELEMENTAL),
             description = "Chậm, Nguyên Tố. Gây 4 sát thương lên TẤT CẢ bài quân trên sân, NGOẠI TRỪ Anh Hùng và Thầy Tu Hoang Dã.",
             effectType = CardEffectType.WINGS_OF_CRYOPHOENIX, effectValue = 4,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ANY,
+                targetCount = 0,
+                scope = EffectScope.ALL_UNITS_EXCEPT_FILTER
+            ),
             rarity = Rarity.EPIC
         ),
         CardTemplate(
@@ -526,6 +643,12 @@ object CardCatalog {
             cost = 13, spellSpeed = SpellSpeed.SLOW, keywords = setOf(Keyword.ELEMENTAL),
             description = "Chậm, Nguyên Tố. Triệu hồi 2 Khổng Lồ ngẫu nhiên. Giảm 1 tiêu hao với mỗi Kỹ Năng hoặc bài phép Nguyên Tố đã dùng (tối đa 10).",
             effectType = CardEffectType.SUMMON_TWO_GIANTS, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ALLY,
+                targetCount = 0,
+                scope = EffectScope.NONE
+            ),
             rarity = Rarity.EPIC
         ),
 
@@ -534,6 +657,12 @@ object CardCatalog {
             id = "card_forged_blade", name = "Kích Darkin", region = Region.DEMACIA, type = CardType.EQUIPMENT,
             cost = 2, basePower = 2, baseHealth = 1, keywords = setOf(Keyword.CHALLENGER),
             description = "Trang Bị Darkin. Ban +2|+1 và Thách Đấu cho đồng minh mạnh nhất.",
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
             isDarkin = true, rarity = Rarity.EPIC
         ),
         CardTemplate(
@@ -583,6 +712,12 @@ object CardCatalog {
             cost = 2, spellSpeed = SpellSpeed.FOCUS,
             description = "Lời Nguyền. Dùng để giải thoát đồng minh đang bị Xiềng Xích.",
             effectType = CardEffectType.PURGE_SHACKLES_CURSE,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.NONE,
+                targetCount = 0,
+                scope = EffectScope.NONE
+            ),
             isCollectibleReward = false
         ),
         CardTemplate(
@@ -590,6 +725,12 @@ object CardCatalog {
             cost = 2, spellSpeed = SpellSpeed.FOCUS,
             description = "Lời Nguyền. Khi còn trên tay, bài phép của bạn tốn thêm 1 tiêu hao. Dùng để hóa giải.",
             effectType = CardEffectType.PURGE_SUPPRESSION_CURSE,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.NONE,
+                targetCount = 0,
+                scope = EffectScope.NONE
+            ),
             isCollectibleReward = false
         ),
         CardTemplate(
@@ -597,6 +738,12 @@ object CardCatalog {
             cost = 2, spellSpeed = SpellSpeed.FOCUS,
             description = "Lời Nguyền. Giảm -1|-0 lên đồng minh khi còn trên tay. Dùng để hóa giải.",
             effectType = CardEffectType.PURGE_TERROR_CURSE,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.NONE,
+                targetCount = 0,
+                scope = EffectScope.NONE
+            ),
             isCollectibleReward = false
         ),
         CardTemplate(
@@ -604,6 +751,12 @@ object CardCatalog {
             cost = 0, spellSpeed = SpellSpeed.BURST, keywords = setOf(Keyword.FLEETING),
             description = "Siêu Tốc, Chóng Tàn. Gây 1 sát thương lên Nhà Chính địch.",
             effectType = CardEffectType.DEAL_DAMAGE_NEXUS, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NEXUS,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 0,
+                scope = EffectScope.ENEMY_NEXUS
+            ),
             isCollectibleReward = false
         ),
         CardTemplate(
@@ -623,6 +776,12 @@ object CardCatalog {
             cost = 0, spellSpeed = SpellSpeed.SKILL, keywords = setOf(Keyword.ELEMENTAL),
             description = "Kỹ Năng Nguyên Tố. Gây sát thương lên tất cả kẻ địch và Nhà Chính địch.",
             effectType = CardEffectType.GLACIAL_STORM_SKILL, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 0,
+                scope = EffectScope.ALL_ENEMIES
+            ),
             isCollectibleReward = false
         ),
         // --- QUẦN ĐẢO BÓNG ĐÊM (MAP 5★ FIORA & VIEGO) ---
@@ -718,6 +877,12 @@ object CardCatalog {
             cost = 3, spellSpeed = SpellSpeed.FAST,
             description = "Chọn 1 đồng minh để hy sinh, sau đó chọn 1 kẻ địch để gây 5 sát thương.",
             effectType = CardEffectType.SACRIFICE_DAMAGE, effectValue = 5,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT_PAIR,
+                targetSide = TargetSide.ALLY_AND_ENEMY,
+                targetCount = 2,
+                scope = EffectScope.MULTI_TARGET
+            ),
             isCollectibleReward = false, rarity = Rarity.RARE
         ),
         CardTemplate(
@@ -725,6 +890,12 @@ object CardCatalog {
             cost = 4, basePower = 4, baseHealth = 4,
             keywords = setOf(Keyword.OVERWHELM, Keyword.FEARSOME),
             description = "Rồng, Áp Đảo, Đáng Sợ. Phải hy sinh 1 đồng minh để ra sân. Khi tiêu diệt kẻ địch, hút 1 máu từ Nhà Chính đối phương.",
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
             requiresAllySacrificeOnPlay = true,
             isDragon = true,
             isCollectibleReward = false, rarity = Rarity.RARE
@@ -734,6 +905,12 @@ object CardCatalog {
             cost = 5, spellSpeed = SpellSpeed.SLOW,
             description = "Cướp 1 bài quân của đối phương trong vòng này.",
             effectType = CardEffectType.POSSESS_UNIT, effectValue = 0,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
             isCollectibleReward = false, rarity = Rarity.RARE
         ),
         CardTemplate(
@@ -817,6 +994,12 @@ object CardCatalog {
             cost = 1, spellSpeed = SpellSpeed.BURST,
             description = "Siêu Tốc. Ban 1 từ khóa có lợi ngẫu nhiên cho đồng minh.",
             effectType = CardEffectType.BUFF_ALLIES_STATS, effectValue = 0,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ALLY,
+                targetCount = 0,
+                scope = EffectScope.ALL_ALLIES
+            ),
             isCollectibleReward = false, rarity = Rarity.COMMON
         ),
         CardTemplate(
@@ -842,6 +1025,12 @@ object CardCatalog {
             cost = 2, spellSpeed = SpellSpeed.FOCUS,
             description = "Tập Trung. Ban +2|+0 và Áp Đảo cho toàn bộ đồng minh trong vòng này.",
             effectType = CardEffectType.BREAKOUT_EFFECT, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ALLY,
+                targetCount = 0,
+                scope = EffectScope.ALL_ALLIES
+            ),
             isCollectibleReward = false, rarity = Rarity.EPIC
         ),
         CardTemplate(
@@ -849,6 +1038,12 @@ object CardCatalog {
             cost = 5, spellSpeed = SpellSpeed.SLOW,
             description = "Chậm. Ban +2|+2 và 1 từ khóa ngẫu nhiên cho toàn bộ đồng minh.",
             effectType = CardEffectType.ASTRAL_DIFFUSION_EFFECT, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NONE,
+                targetSide = TargetSide.ALLY,
+                targetCount = 0,
+                scope = EffectScope.ALL_ALLIES
+            ),
             isCollectibleReward = false, rarity = Rarity.EPIC
         ),
         CardTemplate(
@@ -856,6 +1051,12 @@ object CardCatalog {
             cost = 3, spellSpeed = SpellSpeed.SLOW,
             description = "Chậm. Chọn 1 đồng minh để ban +2|+2 và Áp Đảo.",
             effectType = CardEffectType.STANCE_SWAP_EFFECT, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
             rarity = Rarity.COMMON
         )
     ).associateBy { it.id }

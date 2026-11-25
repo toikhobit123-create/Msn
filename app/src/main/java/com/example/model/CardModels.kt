@@ -109,6 +109,50 @@ enum class CardEffectType {
     BUFF_ALLIES_STATS
 }
 
+/** 1. Loại mục tiêu người chơi có thể chỉ định */
+enum class TargetType {
+    NONE,           // Không cần chọn mục tiêu (tự động / toàn bàn / Nhà Chính)
+    UNIT,           // Chỉ chọn bài quân trên sân (loại trừ Địa Danh)
+    NEXUS,          // Chỉ nhắm vào Nhà Chính
+    UNIT_OR_NEXUS,  // Chọn bài quân hoặc Nhà Chính (vd: Phát Bắn Thần Bí)
+    UNIT_PAIR       // Chọn 2 bài quân khác nhau (vd: Đấu Tay Đôi, Bàn Tay Chết Chóc)
+}
+
+/** 2. Phe hợp lệ của mục tiêu được chọn */
+enum class TargetSide {
+    NONE,           // Không chọn mục tiêu
+    ALLY,           // Chỉ đồng minh
+    ENEMY,          // Chỉ kẻ địch
+    ANY,            // Cả đồng minh lẫn kẻ địch
+    ALLY_AND_ENEMY  // Bắt buộc 1 đồng minh + 1 kẻ địch
+}
+
+/** 4. Phạm vi tác động thực tế của hiệu ứng khi phân giải */
+enum class EffectScope {
+    NONE,                    // Không có hiệu ứng phép/kỹ năng đặc biệt
+    SINGLE_TARGET,           // Tác động lên 1 mục tiêu duy nhất
+    MULTI_TARGET,            // Tác động lên nhiều mục tiêu đã chọn (vd: tối đa 2 kẻ địch)
+    ENEMY_NEXUS,             // Tác động trực tiếp lên Nhà Chính địch
+    ALL_ENEMIES,             // Toàn bộ bài quân địch trên sân
+    ALL_ALLIES,              // Toàn bộ đồng minh trên sân
+    ALL_UNITS,               // Toàn bộ bài quân trên cả 2 sân
+    ALL_UNITS_EXCEPT_FILTER, // Toàn bộ bài quân trừ nhóm miễn nhiễm (vd: Phượng Hoàng Băng)
+    RANDOM_UNIT              // Chọn ngẫu nhiên bài quân trên sân
+}
+
+/** Gói đặc tả mục tiêu & phạm vi gắn trực tiếp vào từng CardTemplate */
+data class CardTargetingSpec(
+    val targetType: TargetType = TargetType.NONE,
+    val targetSide: TargetSide = TargetSide.NONE,
+    val targetCount: Int = 0, // 3. Số lượng mục tiêu (0, 1, 2)
+    val allowFewerTargets: Boolean = false, // Cho phép thi triển khi sân thiếu mục tiêu (vd: "tối đa 2 kẻ địch")
+    val requireCanAttack: Boolean = false, // Ràng buộc riêng cho Tấn Công Tự Do
+    val scope: EffectScope = EffectScope.NONE
+) {
+    val requiresManualTarget: Boolean
+        get() = targetType != TargetType.NONE && targetType != TargetType.NEXUS && targetCount > 0
+}
+
 data class CardTemplate(
     val id: String,
     val name: String,
@@ -124,6 +168,7 @@ data class CardTemplate(
     val description: String,
     val effectType: CardEffectType = CardEffectType.NONE,
     val effectValue: Int = 0,
+    val targeting: CardTargetingSpec = CardTargetingSpec(),
     val isChampion: Boolean = false,
     val levelUpRequirementText: String = "",
     val levelUpPowerBonus: Int = 1,

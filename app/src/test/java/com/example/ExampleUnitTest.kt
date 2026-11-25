@@ -15,10 +15,12 @@ import com.example.engine.SpellStackEntry
 import com.example.model.AdventureCatalog
 import com.example.model.CardCatalog
 import com.example.model.CardEffectType
+import com.example.model.CardTargetingSpec
 import com.example.model.CardTemplate
 import com.example.model.CardType
 import com.example.model.ChampionLoadout
 import com.example.model.DeckCardEntry
+import com.example.model.EffectScope
 import com.example.model.HandCardInstance
 import com.example.model.ItemCategory
 import com.example.model.ItemTemplate
@@ -29,6 +31,8 @@ import com.example.model.Rarity
 import com.example.model.Region
 import com.example.model.RunState
 import com.example.model.SpellSpeed
+import com.example.model.TargetSide
+import com.example.model.TargetType
 import com.example.model.UnitOnBoard
 import com.example.ui.components.cardPortraitRes
 import com.example.viewmodel.AppScreen
@@ -5456,4 +5460,106 @@ class ExampleUnitTest {
         assertEquals(6, summonedAnivia.health)
     }
 
+    @Test
+    fun `targetingMetadataIsIndependentOfCardDescription`() {
+        val adv = AdventureCatalog.getAdventure("adv_demacia_outskirts")
+        val node = adv.mapNodes.first { it.id == "d_fight_1a" }
+        val ally = UnitOnBoard("a1", CardCatalog.getCard("card_cithria"), true, 2, 2, 2, emptySet())
+        val enemy = UnitOnBoard("e1", CardCatalog.getCard("card_laurent_protege"), false, 2, 4, 4, emptySet())
+        val landmark = UnitOnBoard("l1", CardCatalog.getCard("card_sun_disc"), true, 0, 0, 0, emptySet())
+        val state = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_anivia",
+            starLevel = 1,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            playerNexusHp = 30,
+            playerMaxHp = 30,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 5,
+            playerMaxMana = 5,
+            playerBoard = listOf(ally, landmark),
+            enemyBoard = listOf(enemy),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+
+        val mutatedDescriptions = listOf(
+            "",
+            "Deal damage to enemy unit, ally unit, or the enemy Nexus.",
+            "Burst: Hit the enemy Nexus directly without choosing any unit.",
+            "Choose an enemy unit and an ally unit in English."
+        )
+
+        val cardsToVerify = listOf(
+            CardCatalog.getCard("card_ignition"),
+            CardCatalog.getCard("card_mystic_shot"),
+            CardCatalog.getCard("card_get_excited"),
+            CardCatalog.getCard("card_harsh_winds"),
+            CardCatalog.getCard("card_anivia_harsh_winds"),
+            CardCatalog.getCard("card_single_combat"),
+            CardCatalog.getCard("card_black_spear_custom"),
+            CardCatalog.getCard("card_prismatic_barrier"),
+            CardCatalog.getCard("card_stance_swap"),
+            CardCatalog.getCard("card_steel_tempest"),
+            CardCatalog.getCard("card_possession"),
+            CardCatalog.getCard("card_wings_of_cryophoenix"),
+            CardCatalog.getCard("card_super_mega_rocket"),
+            CardCatalog.getCard("card_forged_blade"),
+            CardCatalog.getCard("card_brightsteel_protector"),
+            CardCatalog.getCard("card_camavoran_dragon")
+        )
+
+        cardsToVerify.forEach { original ->
+            val expectedBurstNexus = CombatEngine.isBurstDirectNexusDamageSpell(original)
+            val expectedRequiresTarget = CombatEngine.requiresPlayerTarget(original)
+            val expectedTargetCount = CombatEngine.requiredPlayerTargetCount(original)
+            val expectedValidTargets = CombatEngine.getValidSpellTargetIds(state, original)
+
+            mutatedDescriptions.forEach { newDesc ->
+                val translated = original.copy(description = newDesc)
+                assertEquals(
+                    "isBurstDirectNexusDamageSpell changed for ${original.id} when description='$newDesc'",
+                    expectedBurstNexus,
+                    CombatEngine.isBurstDirectNexusDamageSpell(translated)
+                )
+                assertEquals(
+                    "requiresPlayerTarget changed for ${original.id} when description='$newDesc'",
+                    expectedRequiresTarget,
+                    CombatEngine.requiresPlayerTarget(translated)
+                )
+                assertEquals(
+                    "requiredPlayerTargetCount changed for ${original.id} when description='$newDesc'",
+                    expectedTargetCount,
+                    CombatEngine.requiredPlayerTargetCount(translated)
+                )
+                assertEquals(
+                    "getValidSpellTargetIds changed for ${original.id} when description='$newDesc'",
+                    expectedValidTargets,
+                    CombatEngine.getValidSpellTargetIds(state, translated)
+                )
+            }
+        }
+
+        // Verify a BURST DEAL_DAMAGE_ANY spell with NEXUS + ENEMY_NEXUS targeting skips target selection
+        val burstNexusFromAnyEffect = CardCatalog.getCard("card_mystic_shot").copy(
+            spellSpeed = SpellSpeed.BURST,
+            description = "Nhà Chính đối phương: bài quân kẻ địch đồng minh misleading text",
+            targeting = CardTargetingSpec(
+                targetType = TargetType.NEXUS,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 0,
+                scope = EffectScope.ENEMY_NEXUS
+            )
+        )
+        assertTrue(CombatEngine.isBurstDirectNexusDamageSpell(burstNexusFromAnyEffect))
+        assertFalse(CombatEngine.requiresPlayerTarget(burstNexusFromAnyEffect))
+        assertEquals(0, CombatEngine.requiredPlayerTargetCount(burstNexusFromAnyEffect))
+        assertEquals(emptySet<String>() to emptySet<String>(), CombatEngine.getValidSpellTargetIds(state, burstNexusFromAnyEffect))
+    }
+
 }
+
