@@ -72,6 +72,7 @@ import com.example.engine.ManaPaymentPreview
 import com.example.model.HandCardInstance
 import com.example.model.UnitOnBoard
 import com.example.ui.components.CardTile
+import com.example.ui.components.isFullFrameCardArt
 import com.example.ui.components.unitPortraitRes
 import com.example.ui.theme.AccentGold
 import com.example.ui.theme.AccentIce
@@ -302,6 +303,14 @@ fun ManaDetailDialog(
                             fontSize = 11.5.sp,
                             color = if (milestoneBonus > 0) AccentGold else TextSecondary
                         )
+                        if (combat.playerTempManaFromEmptyGems > 0 || combat.pendingEmptyManaGems > 0) {
+                            Text(
+                                text = "Mana rỗng: +${combat.playerTempManaFromEmptyGems} tạm thời vòng này • +${combat.pendingEmptyManaGems} chờ vòng sau",
+                                fontFamily = InterFontFamily,
+                                fontSize = 11.5.sp,
+                                color = AccentIce
+                            )
+                        }
                         Text(
                             text = "Quân & Tướng chỉ dùng NL Thường. Cuối vòng, lượng dư chuyển sang NL Phép (tối đa 3), phần thừa hơn sẽ mất.",
                             fontFamily = InterFontFamily,
@@ -1170,18 +1179,22 @@ fun ChampionLevelUpBannerOverlay(
                 }
 
                 if (portraitRes != null) {
+                    val isFullFrame = isFullFrameCardArt(unit.template.id)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(128.dp)
+                            .height(if (isFullFrame) 200.dp else 128.dp)
                             .clip(RoundedCornerShape(GameRadius.card))
+                            .background(BgDeep)
                             .border(1.5.dp, AccentIce, RoundedCornerShape(GameRadius.card))
                     ) {
                         Image(
                             painter = painterResource(id = portraitRes),
                             contentDescription = "${unit.template.name} Cấp 2",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                            contentScale = if (isFullFrame) ContentScale.Fit else ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(if (isFullFrame) Modifier.padding(4.dp) else Modifier)
                         )
                         Surface(
                             modifier = Modifier
@@ -1307,3 +1320,46 @@ fun FollowerTransformChoiceDialog(
         confirmButton = {}
     )
 }
+
+@Composable
+fun HandShuffleChoiceDialog(
+    title: String,
+    handCards: List<HandCardInstance>,
+    onChoose: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {},
+        modifier = Modifier.testTag("hand_shuffle_choice_dialog"),
+        containerColor = SurfaceOverlay,
+        titleContentColor = AccentGold,
+        title = {
+            Text(
+                text = "$title — Chọn 1 lá trên tay",
+                fontFamily = CinzelFontFamily,
+                fontWeight = FontWeight.Bold,
+                color = AccentGold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                handCards.forEach { card ->
+                    Button(
+                        onClick = { onChoose(card.instanceId) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("shuffle_choice_${card.instanceId}")
+                    ) {
+                        Text("${card.template.name} (${card.effectiveCost} NL)")
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
+}
+

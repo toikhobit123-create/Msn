@@ -106,7 +106,13 @@ enum class CardEffectType {
     BREAKOUT_EFFECT,
     ASTRAL_DIFFUSION_EFFECT,
     STANCE_SWAP_EFFECT,
-    BUFF_ALLIES_STATS
+    BUFF_ALLIES_STATS,
+    ELIXIR_OF_IRON,
+    PHONG_HAN,
+    BATTLE_FURY,
+    CALL_TO_ARMS,
+    TRYNDAMERE_CHAMPION_SPELL,
+    CALL_TO_ARMS_EFFECT
 }
 
 /** 1. Loại mục tiêu người chơi có thể chỉ định */
@@ -182,8 +188,17 @@ data class CardTemplate(
     val requiresAllySacrificeOnPlay: Boolean = false,
     val isDragon: Boolean = false,
     val isPoro: Boolean = false,
-    val isDarkin: Boolean = false
-)
+    val isDarkin: Boolean = false,
+    val subtype: String? = null
+) {
+    val resolvedSubtype: String?
+        get() = subtype ?: when {
+            isPoro -> "PORO"
+            isDragon -> "DRAGON"
+            isDarkin -> "DARKIN"
+            else -> null
+        }
+}
 
 data class DeckCardEntry(
     val cardId: String,
@@ -205,7 +220,8 @@ data class HandCardInstance(
     val hasPortalBoon: Boolean = false,
     val hasPuffcapTrap: Int = 0,
     val linkedShackledUnitId: String? = null,
-    val transformedFromCard: HandCardInstance? = null
+    val transformedFromCard: HandCardInstance? = null,
+    val keepAsUnitInHand: Boolean = false
 )
 
 data class UnitOnBoard(

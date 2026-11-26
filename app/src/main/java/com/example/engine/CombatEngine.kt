@@ -43,7 +43,7 @@ object CombatEngine {
     ): Boolean {
         val expectedPriority = if (isPlayer) PriorityHolder.PLAYER else PriorityHolder.ENEMY
         if (state.priorityHolder != expectedPriority) return false
-        if (isPlayer && state.pendingTransformChoice != null) return false
+        if (isPlayer && (state.pendingTransformChoice != null || state.pendingHandShuffleChoice != null)) return false
         if (state.phase == CombatPhase.GAME_OVER || state.phase == CombatPhase.COMBAT_RESOLUTION_PHASE) return false
 
         val type = card.type
@@ -80,6 +80,9 @@ object CombatEngine {
         if (card.effectType == CardEffectType.SACRIFICE_DAMAGE &&
             (board.none { it.template.type != CardType.LANDMARK } || oppBoard.none { it.template.type != CardType.LANDMARK })
         ) {
+            return false
+        }
+        if (card.effectType == CardEffectType.CALL_TO_ARMS_EFFECT && isPlayer && state.playerHand.size <= 1) {
             return false
         }
         if (card.effectType == CardEffectType.POSSESS_UNIT &&
@@ -358,10 +361,14 @@ object CombatEngine {
                 else -> 0
             }
         }
-        val startingMana = (1 +
-            loadout.startingManaBonus +
-            relics.sumOf { it.startingManaBonus } +
-            champSpecificManaBonus).coerceIn(1, 3)
+        val startingMana = if (loadout.starLevel >= 6) {
+            3
+        } else {
+            (1 +
+                loadout.startingManaBonus +
+                relics.sumOf { it.startingManaBonus } +
+                champSpecificManaBonus).coerceIn(1, 3)
+        }
 
         val startingSpellMana = PowerResolver.startingSpellMana(powers)
         val celestialStartMana = if (adventure.mutators.any { it.id == "mut_celestial_might" }) 4 else 1
@@ -565,6 +572,24 @@ object CombatEngine {
                     logs.add("Anivia ${s.starLevel}★ kích hoạt +$bonusTotal Mana Thường khởi đầu mỗi lượt.")
                 }
             }
+            "champ_tryndamere" -> {
+                if (isGameStart && s.starLevel >= 2) {
+                    val bonusTotal = s.championMilestoneManaBonus
+                    logs.add("Tryndamere ${s.starLevel}★ kích hoạt +$bonusTotal Mana Thường khởi đầu mỗi lượt.")
+                }
+                if (s.starLevel >= 3 || (s.starLevel >= 1 && s.playerHasAttackToken)) {
+                    val existingIdx = s.playerHand.indexOfFirst { it.template.id == "card_call_to_arms" }
+                    if (existingIdx >= 0) {
+                        s = s.copy(playerHand = s.playerHand.mapIndexed { idx, c ->
+                            if (idx == existingIdx) c.copy(effectiveCost = maxOf(0, c.effectiveCost - 2)) else c
+                        })
+                        logs.add("Lời Thề Chiến Tướng: Giảm 2 tiêu hao cho Lệnh Nhập Ngũ trên tay!")
+                    } else if (s.playerHand.size < 10) {
+                        s = s.copy(playerHand = s.playerHand + createHandInstance(CardCatalog.getCard("card_call_to_arms"), isCreated = true))
+                        logs.add("Lời Thề Chiến Tướng: Tạo 1 lá Lệnh Nhập Ngũ trên tay!")
+                    }
+                }
+            }
         }
 
         // Garen Thăng Cấp
@@ -653,6 +678,7 @@ object CombatEngine {
                 "champ_yasuo" -> "card_steel_tempest"
                 "champ_garen" -> "card_single_combat"
                 "champ_anivia" -> "card_anivia_harsh_winds"
+                "champ_tryndamere" -> "card_tryndamere_battle_fury"
                 else -> "card_flash_freeze"
             }
             s = s.copy(playerHand = s.playerHand + createHandInstance(CardCatalog.getCard(spellId), isFleeting = true))
@@ -914,7 +940,7 @@ object CombatEngine {
         var changed = false
         val updatedHand = state.playerHand.map { hc ->
             val champId = hc.template.id
-            if (hc.template.isChampion && activeChampionIds.contains(champId)) {
+            if (hc.template.isChampion && !hc.keepAsUnitInHand && activeChampionIds.contains(champId)) {
                 val spellId = CardCatalog.championSpellIdFor(champId)
                 val spellTmpl = spellId?.let { CardCatalog.findCardOrNull(it) }
                 if (spellTmpl != null) {
@@ -1003,6 +1029,91 @@ object CombatEngine {
         s = applyDeepBoardBuffs(s, logs)
         s = syncChampionSpellsInHand(s)
         return s.copy(combatLog = logs.takeLast(16))
+    }
+
+    internal fun grantStatsToDeckUnits(
+        state: CombatState,
+        count: Int?,
+        powerGain: Int,
+        healthGain: Int,
+        logs: MutableList<String>,
+        sourceLabel: String
+    ): CombatState {
+        if (state.playerDrawPile.isEmpty() || (powerGain <= 0 && healthGain <= 0)) return state
+        val warlordMult = if (state.championId == "champ_tryndamere" && state.equippedRelics.any { it.id == "R0131" }) 2 else 1
+        val finalPow = powerGain * warlordMult
+        val finalHp = healthGain * warlordMult
+
+        var remaining = count ?: Int.MAX_VALUE
+        var buffedCount = 0
+        val updatedPile = state.playerDrawPile.map { hc ->
+            val isUnitLike = hc.template.type == CardType.UNIT || hc.template.type == CardType.CHAMPION
+            if (remaining > 0 && isUnitLike) {
+                remaining--
+                buffedCount++
+                hc.copy(
+                    bonusPower = hc.bonusPower + finalPow,
+                    bonusHealth = hc.bonusHealth + finalHp
+                )
+            } else {
+                hc
+            }
+        }
+        if (buffedCount == 0) return state
+        logs.add("$sourceLabel: Ban +$finalPow|+$finalHp cho $buffedCount đồng minh trong bộ bài.")
+        return state.copy(playerDrawPile = updatedPile)
+    }
+
+    private fun applyPluckyPoroEmpowerment(unit: UnitOnBoard): UnitOnBoard {
+        if (unit.template.id != "card_plucky_poro" || unit.isSilenced) return unit
+        val hasStatBuff = unit.power > unit.template.basePower || unit.maxHealth > unit.template.baseHealth
+        if (!hasStatBuff) return unit
+        return unit.copy(
+            keywords = unit.keywords + Keyword.REGENERATION + Keyword.OVERWHELM + Keyword.TOUGH
+        )
+    }
+
+    private fun refreshPluckyPoroEmpowerment(state: CombatState): CombatState {
+        val nextPlayer = state.playerBoard.map { applyPluckyPoroEmpowerment(it) }
+        val nextEnemy = state.enemyBoard.map { applyPluckyPoroEmpowerment(it) }
+        return if (nextPlayer == state.playerBoard && nextEnemy == state.enemyBoard) {
+            state
+        } else {
+            state.copy(playerBoard = nextPlayer, enemyBoard = nextEnemy)
+        }
+    }
+
+    private fun drawSpecificUnitFromDeck(
+        state: CombatState,
+        logs: MutableList<String>,
+        predicate: (HandCardInstance) -> Boolean
+    ): Pair<CombatState, HandCardInstance?> {
+        val idx = state.playerDrawPile.indexOfFirst(predicate)
+        if (idx < 0) return state to null
+        val chosen = state.playerDrawPile[idx]
+        val remainingPile = state.playerDrawPile.toMutableList().apply { removeAt(idx) }
+        var s = state.copy(playerDrawPile = remainingPile)
+
+        if (chosen.hasPuffcapTrap > 0) {
+            s = dealDamageToPlayerNexus(s, chosen.hasPuffcapTrap, logs)
+            logs.add("Bẫy Nấm Độc gây ${chosen.hasPuffcapTrap} sát thương!")
+        }
+        if (chosen.hasChimeBoon && s.playerHand.isNotEmpty()) {
+            val handIdx = Random.nextInt(s.playerHand.size)
+            val updatedHand = s.playerHand.toMutableList()
+            val target = updatedHand[handIdx]
+            updatedHand[handIdx] = target.copy(bonusPower = target.bonusPower + 1, bonusHealth = target.bonusHealth + 1)
+            s = s.copy(playerHand = updatedHand)
+            logs.add("Chuông Vũ Trụ ban +1|+1 cho ${target.template.name}!")
+        }
+        if (s.playerHand.size < 10) {
+            s = s.copy(playerHand = s.playerHand + chosen)
+        } else {
+            logs.add("Đầy tay! Tiêu hủy ${chosen.template.name}.")
+        }
+        s = applyDeepBoardBuffs(s, logs)
+        s = syncChampionSpellsInHand(s)
+        return s to chosen
     }
 
     fun playCardFromHand(
@@ -1563,7 +1674,7 @@ object CombatEngine {
             hasDeepBonusApplied = deepApplied,
             hasEvolveBonusApplied = evolveApplied
         )
-        val unit = PowerResolver.applyPlayerBoardAuras(rawUnit, s)
+        val unit = applyPluckyPoroEmpowerment(PowerResolver.applyPlayerBoardAuras(rawUnit, s))
 
         // Attune
         if (unit.keywords.contains(Keyword.ATTUNE)) {
@@ -1592,7 +1703,31 @@ object CombatEngine {
 
         s = PowerResolver.onPostAllySummonEffects(s, unitId, unit, isAllyUnit, logs)
         s = refreshEvolveAndSeenKeywords(s, logs)
-        logs.add("Triệu hồi ${tmpl.name} (${unit.power}|${unit.health}).")
+
+        if (isAllyUnit && s.championId == "champ_tryndamere" && s.starLevel >= 6) {
+            s.playerBoard.find { it.instanceId == unitId }?.let { liveUnit ->
+                val addPow = maxOf(0, liveUnit.power)
+                val addHp = maxOf(0, liveUnit.health)
+                s = s.copy(
+                    playerBoard = s.playerBoard.map { u ->
+                        if (u.instanceId == unitId) {
+                            applyPluckyPoroEmpowerment(
+                                u.copy(
+                                    power = u.power + addPow,
+                                    health = u.health + addHp,
+                                    maxHealth = u.maxHealth + addHp
+                                )
+                            )
+                        } else u
+                    },
+                    roundTempPowerBuffs = s.roundTempPowerBuffs + (unitId to ((s.roundTempPowerBuffs[unitId] ?: 0) + addPow)),
+                    roundTempHealthBuffs = s.roundTempHealthBuffs + (unitId to ((s.roundTempHealthBuffs[unitId] ?: 0) + addHp))
+                )
+                logs.add("Hiệp Ước Huyết Thống (Tryndamere 6★): Gấp đôi chỉ số ${liveUnit.template.name} trong vòng này!")
+            }
+        }
+        val finalUnit = s.playerBoard.find { it.instanceId == unitId } ?: unit
+        logs.add("Triệu hồi ${tmpl.name} (${finalUnit.power}|${finalUnit.health}).")
 
         // On-Summon Skills & Triggers (Pipelines 3.3 & 4.2)
         when (tmpl.id) {
@@ -1702,6 +1837,22 @@ object CombatEngine {
             }
             "card_encroaching_mist" -> {
                 s = applyEncroachingMistSummonBuff(s, forPlayer = true, logs = logs)
+            }
+            "card_avarosan_hearthguard" -> {
+                s = grantStatsToDeckUnits(s, count = null, powerGain = 1, healthGain = 1, logs = logs, sourceLabel = tmpl.name)
+            }
+            "card_glacial_saurian" -> {
+                s = grantStatsToDeckUnits(s, count = 3, powerGain = 1, healthGain = 1, logs = logs, sourceLabel = tmpl.name)
+                val mySubtype = tmpl.resolvedSubtype
+                val (afterDraw, drawnCard) = drawSpecificUnitFromDeck(s, logs) { candidate ->
+                    val sub = candidate.template.resolvedSubtype
+                    (candidate.template.type == CardType.UNIT || candidate.template.type == CardType.CHAMPION) &&
+                        sub != null && sub != mySubtype
+                }
+                s = afterDraw
+                if (drawnCard != null) {
+                    logs.add("${tmpl.name}: Rút 1 bài quân khác nhóm bài phụ (${drawnCard.template.name})!")
+                }
             }
         }
 
@@ -2524,8 +2675,128 @@ object CombatEngine {
                     }
                 }
             }
+            CardEffectType.ELIXIR_OF_IRON -> {
+                val allyBoard = if (sourceIsPlayer) s.playerBoard else s.enemyBoard
+                val chosen = targetUnitId?.let { id -> allyBoard.find { it.instanceId == id } }
+                    ?: allyBoard.filter { it.template.type != CardType.LANDMARK }.maxByOrNull { it.effectivePower }
+                if (chosen != null) {
+                    val hpGain = maxOf(1, card.effectValue)
+                    if (targetUnitId != null) {
+                        s = triggerFatedOnTarget(s, chosen.instanceId, sourceIsPlayer = sourceIsPlayer, logs = logs)
+                    }
+                    val nextHp = s.roundTempHealthBuffs + (chosen.instanceId to ((s.roundTempHealthBuffs[chosen.instanceId] ?: 0) + hpGain))
+                    s = if (sourceIsPlayer) {
+                        s.copy(
+                            playerBoard = s.playerBoard.map { u ->
+                                if (u.instanceId == chosen.instanceId) {
+                                    applyPluckyPoroEmpowerment(
+                                        u.copy(health = u.health + hpGain, maxHealth = u.maxHealth + hpGain)
+                                    )
+                                } else u
+                            },
+                            roundTempHealthBuffs = nextHp
+                        )
+                    } else {
+                        s.copy(
+                            enemyBoard = s.enemyBoard.map { u ->
+                                if (u.instanceId == chosen.instanceId) {
+                                    applyPluckyPoroEmpowerment(
+                                        u.copy(health = u.health + hpGain, maxHealth = u.maxHealth + hpGain)
+                                    )
+                                } else u
+                            },
+                            roundTempHealthBuffs = nextHp
+                        )
+                    }
+                    logs.add("${card.name}: Trao +0|+$hpGain cho ${chosen.template.name} trong vòng này!")
+                } else if (targetUnitId != null) {
+                    logs.add("${card.name} bị mất mục tiêu phần buff trên sân!")
+                }
+                if (sourceIsPlayer) {
+                    s = grantStatsToDeckUnits(s, count = 1, powerGain = 1, healthGain = 1, logs = logs, sourceLabel = card.name)
+                    s = refreshEvolveAndSeenKeywords(s, logs)
+                }
+            }
+            CardEffectType.PHONG_HAN -> {
+                val targetIsEnemy = sourceIsPlayer
+                val targetBoard = if (targetIsEnemy) s.enemyBoard else s.playerBoard
+                val target = targetUnitId?.let { id -> targetBoard.find { it.instanceId == id } }
+                    ?: targetBoard.filter { !it.isFrostbitten }.maxByOrNull { it.effectivePower }
+                    ?: targetBoard.maxByOrNull { it.effectivePower }
+                if (targetUnitId != null && target == null) {
+                    logs.add("${card.name} bị mất mục tiêu nên phần Đóng Băng & Kích Động vô hiệu!")
+                } else if (target != null) {
+                    val blockedBySpellShield = target.hasSpellShield
+                    s = frostbiteUnit(s, target.instanceId, isEnemy = targetIsEnemy, isSpell = true, fromAllyEffect = false, logs = logs)
+                    if (!blockedBySpellShield) {
+                        val existingTempKws = s.roundTempKeywords[target.instanceId] ?: emptySet()
+                        val addTemp = if (target.keywords.contains(Keyword.AGITATED)) emptySet() else setOf(Keyword.AGITATED)
+                        val updatedBoard = (if (targetIsEnemy) s.enemyBoard else s.playerBoard).map { u ->
+                            if (u.instanceId == target.instanceId) u.copy(keywords = u.keywords + Keyword.AGITATED) else u
+                        }
+                        s = if (targetIsEnemy) {
+                            s.copy(
+                                enemyBoard = updatedBoard,
+                                roundTempKeywords = s.roundTempKeywords + (target.instanceId to (existingTempKws + addTemp))
+                            )
+                        } else {
+                            s.copy(
+                                playerBoard = updatedBoard,
+                                roundTempKeywords = s.roundTempKeywords + (target.instanceId to (existingTempKws + addTemp))
+                            )
+                        }
+                        logs.add("${card.name}: Đóng Băng và Kích Động ${target.template.name} trong vòng này!")
+                    }
+                }
+                val poroTmpl = CardCatalog.getCard("card_lonely_poro")
+                if (sourceIsPlayer && s.playerBoard.size < 6) {
+                    s = summonPlayerUnit(s, createHandInstance(poroTmpl, isCreated = true), logs).first
+                } else if (!sourceIsPlayer && s.enemyBoard.size < 6) {
+                    s = summonEnemyUnitFromPool(s, poroTmpl, spendMana = 0, logs = logs)
+                }
+            }
+            CardEffectType.TRYNDAMERE_CHAMPION_SPELL,
+            CardEffectType.BATTLE_FURY -> {
+                val targetBoard = if (sourceIsPlayer) s.playerBoard else s.enemyBoard
+                val target = targetUnitId?.let { id -> targetBoard.find { it.instanceId == id && it.template.type != CardType.LANDMARK } }
+                    ?: targetBoard.filter { it.template.type != CardType.LANDMARK }.maxByOrNull { it.effectivePower }
+                if (target != null) {
+                    if (targetUnitId != null) {
+                        s = triggerFatedOnTarget(s, target.instanceId, sourceIsPlayer = sourceIsPlayer, logs = logs)
+                    }
+                    val updated = targetBoard.map { u ->
+                        if (u.instanceId == target.instanceId) {
+                            applyPluckyPoroEmpowerment(
+                                u.copy(power = u.power + 8, health = u.health + 4, maxHealth = u.maxHealth + 4)
+                            )
+                        } else u
+                    }
+                    s = if (sourceIsPlayer) s.copy(playerBoard = updated) else s.copy(enemyBoard = updated)
+                    logs.add("${card.name} ban +8|+4 cho ${target.template.name}!")
+                }
+                if (sourceIsPlayer) {
+                    val tryndCopy = createHandInstance(CardCatalog.getCard("card_tryndamere"), isFleeting = false, isCreated = true)
+                    val pile = s.playerDrawPile.toMutableList().apply {
+                        add(if (isEmpty()) 0 else Random.nextInt(size + 1), tryndCopy)
+                    }
+                    s = s.copy(playerDrawPile = pile)
+                    logs.add("${card.name} tạo 1 lá Tryndamere trong bộ bài!")
+                }
+            }
+            CardEffectType.CALL_TO_ARMS_EFFECT,
+            CardEffectType.CALL_TO_ARMS -> {
+                if (sourceIsPlayer && s.playerHand.isNotEmpty()) {
+                    s = s.copy(
+                        pendingHandShuffleChoice = PendingHandShuffleChoice(
+                            sourceSpellName = card.name,
+                            candidateInstanceIds = s.playerHand.map { it.instanceId }
+                        )
+                    )
+                }
+            }
             else -> {}
         }
+        s = refreshPluckyPoroEmpowerment(s)
         s = if (sourceIsPlayer) {
             s.copy(playerGraveyard = s.playerGraveyard + card)
         } else {
@@ -2616,7 +2887,7 @@ object CombatEngine {
         if (attackerId == null) return state.copy(selectedAttackerForChallenger = null)
         val unit = state.playerBoard.find { it.instanceId == attackerId } ?: return state
         val hasVulnerableTarget = state.enemyBoard.any {
-            it.keywords.contains(Keyword.VULNERABLE) &&
+            (it.keywords.contains(Keyword.VULNERABLE) || it.keywords.contains(Keyword.AGITATED)) &&
                 it.template.type != CardType.LANDMARK &&
                 !it.isStunned &&
                 !it.isShackled
@@ -2638,7 +2909,10 @@ object CombatEngine {
         val atk = state.playerBoard.find { it.instanceId == attackerId } ?: return state
         val enemy = state.enemyBoard.find { it.instanceId == enemyId } ?: return state
         if (!state.attackingUnitIds.contains(attackerId)) return state
-        if (!atk.keywords.contains(Keyword.CHALLENGER) && !enemy.keywords.contains(Keyword.VULNERABLE)) return state
+        if (!atk.keywords.contains(Keyword.CHALLENGER) &&
+            !enemy.keywords.contains(Keyword.VULNERABLE) &&
+            !enemy.keywords.contains(Keyword.AGITATED)
+        ) return state
         if (enemy.template.type == CardType.LANDMARK || enemy.isStunned || enemy.isShackled) return state
 
         val updated = state.challengedPairings.toMutableMap()
@@ -2706,6 +2980,30 @@ object CombatEngine {
                 if (target != null) {
                     s = frostbiteUnit(s, target.instanceId, isEnemy = true, isSpell = false, fromAllyEffect = false, logs = logs)
                 }
+            }
+            if (atk.template.id == "card_yadulsk_snowdog" && !atk.isSilenced) {
+                s = grantStatsToDeckUnits(
+                    state = s,
+                    count = 2,
+                    powerGain = 1,
+                    healthGain = 1,
+                    logs = logs,
+                    sourceLabel = atk.template.name
+                )
+            }
+        }
+        if (attackers.isNotEmpty() && s.championId == "champ_tryndamere" && s.starLevel >= 2) {
+            val allyIndices = s.playerDrawPile.mapIndexedNotNull { idx, c ->
+                if (c.template.type == CardType.UNIT || c.template.type == CardType.CHAMPION) idx else null
+            }
+            if (allyIndices.isNotEmpty()) {
+                val chosenIdx = allyIndices.random()
+                val chosen = s.playerDrawPile[chosenIdx]
+                val newPile = s.playerDrawPile.toMutableList().apply {
+                    this[chosenIdx] = chosen.copy(bonusPower = chosen.bonusPower + 1, bonusHealth = chosen.bonusHealth + 1)
+                }
+                s = s.copy(playerDrawPile = newPile)
+                logs.add("Say Máu (Tryndamere 2★): Ban +1|+1 cho ${chosen.template.name} trong bộ bài!")
             }
         }
 
@@ -2963,12 +3261,15 @@ object CombatEngine {
 
             val defHadBarrier = defender.hasBarrier
             val defHasTough = defender.keywords.contains(Keyword.TOUGH)
+            val defHasAgitated = defender.keywords.contains(Keyword.AGITATED)
             val hasOverwhelm = attacker.keywords.contains(Keyword.OVERWHELM)
 
             var nexusOverflow = 0
             val damageAssignedToBlocker = if (hasOverwhelm) {
-                // Barrier absorbs damage before Tough applies; without Barrier, Tough adds +1 to lethal assignment
-                val lethalNeeded = defender.health + (if (!defHadBarrier && defHasTough) 1 else 0)
+                // Barrier absorbs damage before Tough/Agitated apply
+                val toughOffset = if (!defHadBarrier && defHasTough) 1 else 0
+                val agitatedOffset = if (!defHadBarrier && defHasAgitated) 1 else 0
+                val lethalNeeded = maxOf(1, defender.health + toughOffset - agitatedOffset)
                 nexusOverflow = maxOf(0, strikeDmg - lethalNeeded)
                 minOf(strikeDmg, lethalNeeded)
             } else {
@@ -3433,7 +3734,9 @@ object CombatEngine {
             return next to 0
         }
 
-        val afterTough = if (target.keywords.contains(Keyword.TOUGH)) maxOf(0, damage - 1) else damage
+        val agitatedBonus = if (target.keywords.contains(Keyword.AGITATED)) 1 else 0
+        val rawDamage = damage + agitatedBonus
+        val afterTough = if (target.keywords.contains(Keyword.TOUGH)) maxOf(0, rawDamage - 1) else rawDamage
         val crystallizeMult = if (isEnemy && target.effectivePower == 0 && state.championId == "champ_anivia" && state.starLevel >= 6) 2 else 1
         val actualDmg = afterTough * crystallizeMult
         if (actualDmg <= 0) return state to 0
@@ -3564,6 +3867,43 @@ object CombatEngine {
 
         val lastBreathRally = !target.isSilenced && target.attachedItems.any { it.onLastBreathRally }
 
+        // Tryndamere Lv1: Xuống <= 0 HP -> Lập tức lên Lv2 (9|9, Áp Đảo, Kiên Cường, Đáng Sợ) thay vì hy sinh!
+        if (!isEnemy && target.template.id == "card_tryndamere" && !target.isLeveledUp && !target.isSilenced) {
+            val extraPow = maxOf(0, target.power - target.template.basePower)
+            val extraHp = maxOf(0, target.maxHealth - target.template.baseHealth)
+            val leveledTrynd = target.copy(
+                power = 9 + extraPow,
+                health = 9 + extraHp,
+                maxHealth = 9 + extraHp,
+                keywords = (target.keywords - Keyword.EPHEMERAL) + setOf(
+                    Keyword.OVERWHELM,
+                    Keyword.TOUGH,
+                    Keyword.FEARSOME
+                ),
+                isLeveledUp = true,
+                isFrostbitten = false,
+                frostbiteReduction = null,
+                hasBarrier = false
+            )
+            s = s.copy(playerBoard = s.playerBoard.map { if (it.instanceId == unitId) leveledTrynd else it })
+            if (s.equippedRelics.any { it.levelUpRally }) {
+                s = grantPlayerAttackToken(s, logs, "Thăng Cấp Tập Hợp")
+            }
+            if (s.equippedRelics.any { it.id == "R0031" }) {
+                s.enemyBoard.toList().forEach { e -> s = stunEnemyUnit(s, e.instanceId, logs) }
+            }
+            if (s.equippedRelics.any { it.id == "R0113" }) {
+                s = s.copy(playerSpellMana = 3)
+            }
+            if (s.equippedRelics.any { it.id == "R0105" }) {
+                s = s.copy(playerMana = minOf(s.playerMaxMana, s.playerMana + 3))
+            }
+            s = PowerResolver.onChampionLevelUp(s, logs)
+            logs.add("★ Tryndamere xuống 0 Máu — Lập tức Thăng Cấp (${leveledTrynd.power}|${leveledTrynd.health}: Áp Đảo, Kiên Cường, Đáng Sợ)!")
+            s = syncChampionSpellsInHand(s)
+            return cleanCombatUnitReferences(s, unitId)
+        }
+
         // Deathless revival: counts as death & revive (new instanceId, Hallowed/Last Breath/Graveyard triggered, Stunned, 1 HP)
         if (target.hasDeathless) {
             val withoutOld = board.filterNot { it.instanceId == unitId }
@@ -3674,6 +4014,11 @@ object CombatEngine {
             s = dealDamageToEnemyNexus(s, 1, logs)
             s = dealDamageToPlayerNexus(s, 1, logs)
             logs.add("Thùng Thuốc Độc phát nổ gây 1 sát thương lên cả 2 Nhà Chính!")
+        }
+
+        // Lợn Rừng Sát Thủ Last Breath -> Nhận 1 ngọc năng lượng rỗng
+        if (!target.isSilenced && target.template.id == "card_ruthless_boar" && !isEnemy) {
+            s = gainPlayerManaGem(s, empty = true, logs, "Trăng Trối: ${target.template.name}")
         }
 
         // Pipeline 4.2: Linh Hồn Lạc Lối Last Breath -> Tạo 1 Song Kiếm Ác Quỷ lên tay
@@ -4265,6 +4610,18 @@ object CombatEngine {
                 s = applyEncroachingMistSummonBuff(s, forPlayer = false, logs = logs)
             }
         }
+
+        // Tryndamere 4★ Địa Hình Hiểm Trở: Lần đầu tiên địch triệu hồi bài quân mỗi vòng, Đóng Băng bài quân đó
+        if (s.championId == "champ_tryndamere" &&
+            s.starLevel >= 4 &&
+            chosen.type != CardType.LANDMARK &&
+            !s.enemySummonedThisRound &&
+            s.enemyBoard.any { it.instanceId == enemyUnit.instanceId }
+        ) {
+            s = s.copy(enemySummonedThisRound = true)
+            s = frostbiteUnit(s, enemyUnit.instanceId, isEnemy = true, isSpell = false, fromAllyEffect = false, logs = logs)
+            logs.add("Địa Hình Hiểm Trở (Tryndamere 4★): Đóng Băng ${chosen.name}!")
+        }
         return s
     }
 
@@ -4541,6 +4898,7 @@ object CombatEngine {
 
         // P0093: Không Thể Ngừng Lại - Các buff chỉ số & từ khóa "trong vòng này" của đồng minh (trừ Lá Chắn) tồn tại vĩnh viễn
         val keepPlayerRoundBuffs = PowerResolver.shouldKeepRoundBuffs(s)
+        val expiredPlayerTempIds = mutableListOf<String>()
         val cleanPlayerBoard = s.playerBoard.map { u ->
             val healedHp = if (u.keywords.contains(Keyword.REGENERATION)) u.maxHealth else u.health
             val supPow = if (keepPlayerRoundBuffs) 0 else (s.roundSupportPowerBuffs[u.instanceId] ?: 0) + (s.roundTempPowerBuffs[u.instanceId] ?: 0)
@@ -4552,7 +4910,15 @@ object CombatEngine {
                 roundKwsForUnit
             }
             val newMaxHp = maxOf(1, u.maxHealth - supHp)
-            val newHp = minOf(newMaxHp, maxOf(1, healedHp - supHp))
+            val rawHp = healedHp - supHp
+            if (u.template.type != CardType.LANDMARK && supHp > 0 && rawHp <= 0) {
+                expiredPlayerTempIds += u.instanceId
+            }
+            val newHp = if (u.template.type != CardType.LANDMARK && supHp > 0) {
+                minOf(newMaxHp, maxOf(0, rawHp))
+            } else {
+                minOf(newMaxHp, maxOf(1, rawHp))
+            }
             u.copy(
                 power = maxOf(0, u.power - supPow),
                 health = newHp,
@@ -4565,13 +4931,22 @@ object CombatEngine {
                 keywords = (u.keywords - Keyword.STUN) - supKws
             )
         }
+        val expiredEnemyTempIds = mutableListOf<String>()
         val cleanEnemyBoard = s.enemyBoard.map { u ->
             val healedHp = if (u.keywords.contains(Keyword.REGENERATION)) u.maxHealth else u.health
             val supPow = (s.roundSupportPowerBuffs[u.instanceId] ?: 0) + (s.roundTempPowerBuffs[u.instanceId] ?: 0)
             val supHp = (s.roundSupportHealthBuffs[u.instanceId] ?: 0) + (s.roundTempHealthBuffs[u.instanceId] ?: 0)
             val supKws = (s.roundSupportKeywords[u.instanceId] ?: emptySet()) + (s.roundTempKeywords[u.instanceId] ?: emptySet())
             val newMaxHp = maxOf(1, u.maxHealth - supHp)
-            val newHp = minOf(newMaxHp, maxOf(1, healedHp - supHp))
+            val rawHp = healedHp - supHp
+            if (u.template.type != CardType.LANDMARK && supHp > 0 && rawHp <= 0) {
+                expiredEnemyTempIds += u.instanceId
+            }
+            val newHp = if (u.template.type != CardType.LANDMARK && supHp > 0) {
+                minOf(newMaxHp, maxOf(0, rawHp))
+            } else {
+                minOf(newMaxHp, maxOf(1, rawHp))
+            }
             u.copy(
                 power = maxOf(0, u.power - supPow),
                 health = newHp,
@@ -4583,6 +4958,13 @@ object CombatEngine {
                 fatedUsedThisRound = false,
                 keywords = (u.keywords - Keyword.STUN) - supKws
             )
+        }
+        s = s.copy(playerBoard = cleanPlayerBoard, enemyBoard = cleanEnemyBoard)
+        expiredPlayerTempIds.forEach { id ->
+            s = removeUnit(s, id, isEnemy = false, logs = logs)
+        }
+        expiredEnemyTempIds.forEach { id ->
+            s = removeUnit(s, id, isEnemy = true, logs = logs)
         }
 
         val strongestDeadFollower = s.playerFollowersDiedThisRound.maxWithOrNull(
@@ -4593,8 +4975,12 @@ object CombatEngine {
 
         val nextRound = s.round + 1
         val prevPlayerMax = s.playerMaxMana.coerceIn(1, 10)
+        val prevPermanentPlayerMax = (prevPlayerMax - s.playerTempManaFromEmptyGems).coerceIn(1, 10)
+        val nextPermanentPlayerMax = (prevPermanentPlayerMax + 1).coerceIn(1, 10)
+        val newPlayerMax = minOf(10, nextPermanentPlayerMax + s.pendingEmptyManaGems)
+        val nextPlayerTempFromEmpty = (newPlayerMax - nextPermanentPlayerMax).coerceAtLeast(0)
+
         val prevEnemyMax = s.enemyMaxMana.coerceIn(1, 10)
-        val newPlayerMax = (prevPlayerMax + 1).coerceIn(1, 10)
         val newEnemyMax = (prevEnemyMax + 1).coerceIn(1, 10)
         val unusedPlayerRegular = s.playerMana.coerceIn(0, prevPlayerMax)
         val unusedEnemyRegular = s.enemyMana.coerceIn(0, prevEnemyMax)
@@ -4604,11 +4990,16 @@ object CombatEngine {
         val playerGetsToken = nextRound % 2 == 1
         val roundInitiator = if (playerGetsToken) PriorityHolder.PLAYER else PriorityHolder.ENEMY
         logs.add("--- Vòng $nextRound (Lượt Tấn Công: ${if (playerGetsToken) "Bạn" else "Địch"}) ---")
+        if (nextPlayerTempFromEmpty > 0) {
+            logs.add("Mana rỗng ban +$nextPlayerTempFromEmpty Mana tạm thời cho Vòng $nextRound (Tổng: $newPlayerMax).")
+        }
 
         s = s.copy(
             round = nextRound,
             playerMana = newPlayerMax,
             playerMaxMana = newPlayerMax,
+            playerTempManaFromEmptyGems = nextPlayerTempFromEmpty,
+            pendingEmptyManaGems = 0,
             playerSpellMana = playerSpellBank,
             enemyMana = newEnemyMax,
             enemyMaxMana = newEnemyMax,
@@ -4638,8 +5029,6 @@ object CombatEngine {
             enemyCastBurstInBlock = false,
             playerFastSpellUsedInCombat = false,
             enemyFastSpellUsedInCombat = false,
-            playerBoard = cleanPlayerBoard,
-            enemyBoard = cleanEnemyBoard,
             playerHand = cleanHand,
             playerCardsPlayedThisRound = 0,
             playerSpellsPlayedThisRound = 0,
@@ -4647,6 +5036,7 @@ object CombatEngine {
             followersPlayedThisRound = 0,
             renewingPowerUsedThisRound = false,
             stoleEnemyCreatedCardThisRound = false,
+            enemySummonedThisRound = false,
             attackingUnitIds = emptyList(),
             blockPairings = emptyMap(),
             confirmedBlockedAttackerIds = emptySet(),
@@ -4694,6 +5084,7 @@ object CombatEngine {
                     "card_ashe" -> s.enemiesFrostbittenCount >= 3 || s.round >= 3
                     "card_garen" -> u.levelProgress >= 2
                     "card_anivia" -> isRoundStart && s.isEnlightened
+                    "card_tryndamere" -> false
                     "card_renekton" -> u.levelProgress >= 2
                     "card_azir" -> s.round >= 4
                     "card_nasus" -> s.playerSlainCount >= 10
@@ -4818,7 +5209,26 @@ object CombatEngine {
         sourceLabel: String = "Tăng Ngọc Năng Lượng"
     ): CombatState {
         var s = state
-        if (s.playerMaxMana >= 10) {
+        if (empty) {
+            if (s.isEnlightened && s.championId == "champ_anivia" && s.starLevel >= 2) {
+                if (s.playerBoard.isNotEmpty()) {
+                    s = s.copy(
+                        playerBoard = s.playerBoard.map {
+                            it.copy(power = it.power + 1, health = it.health + 1, maxHealth = it.maxHealth + 1)
+                        }
+                    )
+                    logs.add("Băng Giá Tràn Trề (Khai Sáng): Toàn bộ đồng minh nhận +1|+1!")
+                }
+                return s
+            }
+            val nextPending = (s.pendingEmptyManaGems + 1).coerceAtMost(10)
+            s = s.copy(pendingEmptyManaGems = nextPending)
+            logs.add("$sourceLabel: Nhận +1 ngọc năng lượng rỗng (+$nextPending Mana tạm thời cho vòng sau).")
+            return s
+        }
+
+        val currentPermanentMax = (s.playerMaxMana - s.playerTempManaFromEmptyGems).coerceIn(1, 10)
+        if (s.playerMaxMana >= 10 && currentPermanentMax >= 10) {
             // Anivia 2★ Băng Giá Tràn Trề: Nếu được Khai Sáng, ban +1|+1 cho đồng minh
             if (s.isEnlightened && s.championId == "champ_anivia" && s.starLevel >= 2 && s.playerBoard.isNotEmpty()) {
                 s = s.copy(
@@ -4831,9 +5241,14 @@ object CombatEngine {
             return s
         }
         val newMax = minOf(10, s.playerMaxMana + 1)
-        val newCurrent = if (empty) minOf(newMax, s.playerMana) else minOf(newMax, s.playerMana + 1)
-        s = s.copy(playerMaxMana = newMax, playerMana = newCurrent)
-        logs.add("$sourceLabel: Nhận +1 ngọc năng lượng${if (empty) " rỗng" else ""} (Tối đa: $newMax).")
+        val newCurrent = minOf(newMax, s.playerMana + 1)
+        val nextTemp = (s.playerTempManaFromEmptyGems - (if (s.playerMaxMana >= 10) 1 else 0)).coerceAtLeast(0)
+        s = s.copy(
+            playerMaxMana = newMax,
+            playerMana = newCurrent,
+            playerTempManaFromEmptyGems = nextTemp
+        )
+        logs.add("$sourceLabel: Nhận +1 ngọc năng lượng (Tối đa: $newMax).")
         return s
     }
 
@@ -5019,7 +5434,7 @@ object CombatEngine {
         if (playerIsAttacking) {
             s = refreshEvolveAndSeenKeywords(s, logs)
         }
-        return s
+        return refreshPluckyPoroEmpowerment(s)
     }
 
     private fun detachEquipmentFromUnit(unit: UnitOnBoard): Pair<UnitOnBoard, CardTemplate?> {
@@ -5138,6 +5553,30 @@ object CombatEngine {
                 if (target != null) {
                     s = frostbiteUnit(s, target.instanceId, isEnemy = true, isSpell = false, fromAllyEffect = false, logs = logs)
                 }
+            }
+            if (playerIsAttacking && atk.template.id == "card_yadulsk_snowdog" && !atk.isSilenced) {
+                s = grantStatsToDeckUnits(
+                    state = s,
+                    count = 2,
+                    powerGain = 1,
+                    healthGain = 1,
+                    logs = logs,
+                    sourceLabel = atk.template.name
+                )
+            }
+        }
+        if (playerIsAttacking && validAttackers.isNotEmpty() && s.championId == "champ_tryndamere" && s.starLevel >= 2) {
+            val allyIndices = s.playerDrawPile.mapIndexedNotNull { idx, c ->
+                if (c.template.type == CardType.UNIT || c.template.type == CardType.CHAMPION) idx else null
+            }
+            if (allyIndices.isNotEmpty()) {
+                val chosenIdx = allyIndices.random()
+                val chosen = s.playerDrawPile[chosenIdx]
+                val newPile = s.playerDrawPile.toMutableList().apply {
+                    this[chosenIdx] = chosen.copy(bonusPower = chosen.bonusPower + 1, bonusHealth = chosen.bonusHealth + 1)
+                }
+                s = s.copy(playerDrawPile = newPile)
+                logs.add("Say Máu (Tryndamere 2★): Ban +1|+1 cho ${chosen.template.name} trong bộ bài!")
             }
         }
 
@@ -5358,14 +5797,30 @@ object CombatEngine {
         val extraKws = if (target.template.id == "card_nasus") setOf(Keyword.SPELLSHIELD) else emptySet()
         s = s.copy(playerBoard = s.playerBoard.map { u ->
             if (u.instanceId == unitInstanceId) {
-                u.copy(
-                    isLeveledUp = true,
-                    power = u.power + u.template.levelUpPowerBonus,
-                    health = u.health + u.template.levelUpHealthBonus,
-                    maxHealth = u.maxHealth + u.template.levelUpHealthBonus,
-                    keywords = u.keywords + extraKws,
-                    hasSpellShield = u.hasSpellShield || extraKws.contains(Keyword.SPELLSHIELD)
-                )
+                if (u.template.id == "card_tryndamere") {
+                    val extraPow = maxOf(0, u.power - u.template.basePower)
+                    val extraHp = maxOf(0, u.maxHealth - u.template.baseHealth)
+                    u.copy(
+                        isLeveledUp = true,
+                        power = 9 + extraPow,
+                        health = 9 + extraHp,
+                        maxHealth = 9 + extraHp,
+                        keywords = (u.keywords - Keyword.EPHEMERAL) + setOf(
+                            Keyword.OVERWHELM,
+                            Keyword.TOUGH,
+                            Keyword.FEARSOME
+                        )
+                    )
+                } else {
+                    u.copy(
+                        isLeveledUp = true,
+                        power = u.power + u.template.levelUpPowerBonus,
+                        health = u.health + u.template.levelUpHealthBonus,
+                        maxHealth = u.maxHealth + u.template.levelUpHealthBonus,
+                        keywords = u.keywords + extraKws,
+                        hasSpellShield = u.hasSpellShield || extraKws.contains(Keyword.SPELLSHIELD)
+                    )
+                }
             } else u
         })
         logs.add("★ Ánh Hào Quang Tinh Tú thăng cấp ${target.template.name}!")
@@ -5487,5 +5942,45 @@ object CombatEngine {
         )
         s = syncChampionSpellsInHand(s)
         return checkGameOver(s)
+    }
+
+    fun resolveHandShuffleChoice(state: CombatState, chosenHandInstanceId: String): CombatState {
+        val pending = state.pendingHandShuffleChoice ?: return state
+        val chosenCard = state.playerHand.find { it.instanceId == chosenHandInstanceId } ?: return state
+        val logs = state.combatLog.toMutableList()
+
+        val remainingHand = state.playerHand.filterNot { it.instanceId == chosenHandInstanceId }
+        val updatedPile = state.playerDrawPile.toMutableList().apply {
+            add(if (isEmpty()) 0 else Random.nextInt(size + 1), chosenCard.copy(keepAsUnitInHand = false))
+        }
+        logs.add("${pending.sourceSpellName}: Xáo ${chosenCard.template.name} vào vị trí ngẫu nhiên trong bộ bài.")
+
+        var nextHand = remainingHand
+        if (updatedPile.isNotEmpty()) {
+            val drawn = updatedPile.removeAt(Random.nextInt(updatedPile.size))
+            // Giữ nguyên dạng bài quân nếu rút trúng Tướng qua Lệnh Nhập Ngũ để có thể gọi 2+ Tướng lên sân
+            val keptDrawn = if (drawn.template.isChampion) drawn.copy(keepAsUnitInHand = true) else drawn
+            if (nextHand.size < 10) {
+                nextHand = nextHand + keptDrawn
+                logs.add("${pending.sourceSpellName}: Rút ngẫu nhiên ${keptDrawn.template.name}!")
+            } else {
+                logs.add("${pending.sourceSpellName}: Tay đầy (10 lá), ${keptDrawn.template.name} bị thiêu rụi!")
+            }
+        }
+
+        var s = state.copy(
+            playerHand = nextHand,
+            playerDrawPile = updatedPile,
+            pendingHandShuffleChoice = null
+        )
+
+        // Tryndamere 6★: Tập Hợp (chỉ nhận Attack Token nếu chưa có; giữ nguyên lượt địch nếu địch đang có)
+        if (s.championId == "champ_tryndamere" && s.starLevel >= 6 && !s.playerHasAttackToken) {
+            s = grantPlayerAttackToken(s, logs, "Hiệp Ước Huyết Thống")
+            logs.add("Hiệp Ước Huyết Thống (Tryndamere 6★): Nhận lượt tiến công!")
+        }
+
+        s = syncChampionSpellsInHand(s)
+        return checkGameOver(s.copy(combatLog = logs.takeLast(16)))
     }
 }

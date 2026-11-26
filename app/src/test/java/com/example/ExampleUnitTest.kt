@@ -967,16 +967,22 @@ class ExampleUnitTest {
 
         // Playing Harsh Winds at 9 Max Mana:
         // - Frostbites 2 enemies + draws 1 card
-        // - Winter's Boon II grants +1 empty Mana gem (Max 9 -> 10)
+        // - Winter's Boon II grants +1 empty Mana gem (+1 temporary Mana for next round)
         // - Clash of Giants drops cost 13 -> 12
         state = state.copy(playerMana = 5, priorityHolder = PriorityHolder.PLAYER)
         state = CombatEngine.playCardFromHand(state, "hc_hw")
-        assertEquals(10, state.playerMaxMana)
+        assertEquals(9, state.playerMaxMana)
+        assertEquals(1, state.pendingEmptyManaGems)
         assertFalse(state.isEnlightened) // Enlightened is checked strictly at Round Start when regularMana >= 10
         assertTrue(state.enemyBoard.all { it.isFrostbitten })
         assertTrue(state.playerHand.any { it.instanceId == "draw_1" })
         val clashInHand = state.playerHand.first { it.instanceId == "hc_clash" }
         assertEquals(12, state.effectivePlayCost(clashInHand))
+
+        val nextRound = CombatEngine.advanceToNextRound(state, mutableListOf())
+        assertEquals(10, nextRound.playerMaxMana)
+        assertEquals(10, nextRound.playerMana)
+        assertTrue(nextRound.isEnlightened)
     }
 
     @Test
@@ -1181,11 +1187,17 @@ class ExampleUnitTest {
             equippedRelics = listOf("R0082", "R0082", "R0082")
         )
 
-        // 6★ with NO mana power must start Round 1 with exactly 3 mana even with Starforged Gauntlets
-        listOf(sixStarNoRelic, sixStarWithStarforged, sixStarTripleStarforged).forEach { loadout ->
-            val encounter = CombatEngine.createEncounter(baseRun, loadout, adv, node)
-            assertEquals(3, encounter.playerMaxMana)
-            assertEquals(3, encounter.playerMana)
+        // EVERY 6★ champion with NO mana power must start Round 1 with exactly 3 mana even with Starforged Gauntlets
+        CardCatalog.champions.forEach { champ ->
+            val champRun = baseRun.copy(championId = champ.id, runDeck = champ.baseDeck)
+            val noRelic = sixStarNoRelic.copy(championId = champ.id)
+            val withStarforged = sixStarWithStarforged.copy(championId = champ.id)
+            val tripleStarforged = sixStarTripleStarforged.copy(championId = champ.id)
+            listOf(noRelic, withStarforged, tripleStarforged).forEach { loadout ->
+                val encounter = CombatEngine.createEncounter(champRun, loadout, adv, node)
+                assertEquals("${champ.id} 6★ should start at 3 max mana", 3, encounter.playerMaxMana)
+                assertEquals("${champ.id} 6★ should start at 3 mana", 3, encounter.playerMana)
+            }
         }
 
         // With pow_manaflow (+2 mana gems at Game Start), 6★ starts at 5 mana and increases strictly by +1 per round
@@ -1203,8 +1215,8 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun `champion roster only contains anivia stale db loadouts are cleaned and deck cards have unique art`() = runTest {
-        assertEquals(listOf("champ_anivia"), CardCatalog.champions.map { it.id })
+    fun `champion roster contains anivia and tryndamere stale db loadouts are cleaned and deck cards have unique art`() = runTest {
+        assertEquals(listOf("champ_anivia", "champ_tryndamere"), CardCatalog.champions.map { it.id })
 
         val dao = FakeGameDao()
         val repo = GameRepository(dao, testDispatcher)
@@ -1232,7 +1244,7 @@ class ExampleUnitTest {
         val vm = GameViewModel(repo)
         advanceUntilIdle()
 
-        assertEquals(setOf("champ_anivia"), vm.uiState.value.championLoadouts.keys)
+        assertEquals(setOf("champ_anivia", "champ_tryndamere"), vm.uiState.value.championLoadouts.keys)
         assertNotNull(dao.getChampionLoadout("champ_jinx"))
         assertNotNull(dao.getChampionLoadout("champ_yasuo"))
         assertEquals("champ_anivia", vm.uiState.value.selectedChampionId)
@@ -1247,6 +1259,16 @@ class ExampleUnitTest {
         }
         assertEquals(10, artResources.size)
         assertEquals(10, artResources.toSet().size)
+
+        // All 9 cards in Tryndamere's starter deck have distinct non-null full-frame illustrations
+        val tryndamereCardIds = CardCatalog.getChampion("champ_tryndamere").baseDeck.map { it.cardId }
+        val tryndArtResources = tryndamereCardIds.map { cardId ->
+            val res = cardPortraitRes(cardId)
+            assertNotNull("Expected full-frame illustration for $cardId", res)
+            res!!
+        }
+        assertEquals(9, tryndArtResources.size)
+        assertEquals(9, tryndArtResources.toSet().size)
     }
 
     @Test
@@ -5559,6 +5581,754 @@ class ExampleUnitTest {
         assertFalse(CombatEngine.requiresPlayerTarget(burstNexusFromAnyEffect))
         assertEquals(0, CombatEngine.requiredPlayerTargetCount(burstNexusFromAnyEffect))
         assertEquals(emptySet<String>() to emptySet<String>(), CombatEngine.getValidSpellTargetIds(state, burstNexusFromAnyEffect))
+    }
+
+    @Test
+    fun `aniviaSixStarFrostbitesFioraAfterChallengerShowdownBuffLeavesZeroPower`() {
+        val adv = AdventureCatalog.getAdventure("adv_shadow_isles_5star")
+        val fioraNode = adv.mapNodes.first { it.id == "si_midboss_fiora" }
+        val fioraUnit = UnitOnBoard(
+            instanceId = "e_fiora",
+            template = CardCatalog.getCard("card_fiora"),
+            ownerIsPlayer = false,
+            power = 14,
+            health = 14,
+            maxHealth = 14,
+            keywords = setOf(Keyword.CHALLENGER)
+        )
+        val playerBlocker = UnitOnBoard(
+            instanceId = "p_blocker",
+            template = CardCatalog.getCard("card_cithria"),
+            ownerIsPlayer = true,
+            power = 2,
+            health = 2,
+            maxHealth = 2,
+            keywords = emptySet()
+        )
+        val state = CombatState(
+            encounterNode = fioraNode,
+            adventure = adv,
+            championId = "champ_anivia",
+            starLevel = 6,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = adv.mutators,
+            playerNexusHp = 35,
+            playerMaxHp = 35,
+            enemyNexusHp = 38,
+            enemyMaxHp = 38,
+            enemyHasAttackToken = true,
+            enemyBoard = listOf(fioraUnit),
+            playerBoard = listOf(playerBlocker),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.ENEMY
+        )
+
+        val afterAiAttack = EnemyAIController.executeTurn(state)
+        assertEquals(CombatPhase.COMBAT_DECLARE_BLOCK_PHASE, afterAiAttack.phase)
+        assertEquals(PriorityHolder.PLAYER, afterAiAttack.priorityHolder)
+        assertEquals("p_blocker", afterAiAttack.blockPairings["e_fiora"])
+
+        val attackingFiora = afterAiAttack.enemyBoard.first { it.instanceId == "e_fiora" }
+        assertTrue(attackingFiora.keywords.contains(Keyword.TOUGH))
+        assertEquals(16, attackingFiora.health)
+        assertEquals(16, attackingFiora.maxHealth)
+        assertTrue(attackingFiora.isFrostbitten)
+        assertEquals(0, attackingFiora.effectivePower)
+
+        // Next round: temporary +2|+2, TOUGH, and Frostbite expire cleanly back to 14|14
+        val nextRound = CombatEngine.advanceToNextRound(afterAiAttack, mutableListOf())
+        val fioraNextRound = nextRound.enemyBoard.first { it.instanceId == "e_fiora" }
+        assertEquals(14, fioraNextRound.power)
+        assertEquals(14, fioraNextRound.health)
+        assertEquals(14, fioraNextRound.maxHealth)
+        assertFalse(fioraNextRound.keywords.contains(Keyword.TOUGH))
+        assertFalse(fioraNextRound.isFrostbitten)
+    }
+
+    @Test
+    fun `challengerShowdownTempHealthExpirationKillsUnitAtZeroHp`() {
+        val adv = AdventureCatalog.getAdventure("adv_shadow_isles_5star")
+        val fioraNode = adv.mapNodes.first { it.id == "si_midboss_fiora" }
+        val challenger35 = UnitOnBoard(
+            instanceId = "e_35",
+            template = CardCatalog.getCard("card_fleetfeather_tracker"),
+            ownerIsPlayer = false,
+            power = 3,
+            health = 5,
+            maxHealth = 5,
+            keywords = setOf(Keyword.CHALLENGER)
+        )
+        val defender63 = UnitOnBoard(
+            instanceId = "p_63",
+            template = CardCatalog.getCard("card_guardian_follower"),
+            ownerIsPlayer = true,
+            power = 6,
+            health = 3,
+            maxHealth = 3,
+            keywords = emptySet()
+        )
+        val baseState = CombatState(
+            encounterNode = fioraNode,
+            adventure = adv,
+            championId = "champ_anivia",
+            starLevel = 1,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            playerNexusHp = 35,
+            playerMaxHp = 35,
+            enemyNexusHp = 38,
+            enemyMaxHp = 38,
+            enemyBoard = listOf(challenger35),
+            playerBoard = listOf(defender63),
+            phase = CombatPhase.COMBAT_RESOLUTION_PHASE,
+            playerInitiatedCombat = false
+        )
+
+        // Buffed to 5/7 Tough on Challenge
+        val buffedState = CombatEngine.grantEnemyChallengerShowdownBuff(baseState, "e_35", mutableListOf())
+        val buffedUnit = buffedState.enemyBoard.first { it.instanceId == "e_35" }
+        assertEquals(5, buffedUnit.power)
+        assertEquals(7, buffedUnit.health)
+        assertEquals(7, buffedUnit.maxHealth)
+        assertTrue(buffedUnit.keywords.contains(Keyword.TOUGH))
+
+        // Attacks 6/3 blocker -> takes 6 - 1 (Tough) = 5 damage -> survives combat at 5/2
+        val afterCombat = CombatEngine.resolveCombatResolution(
+            state = buffedState.copy(
+                attackingUnitIds = listOf("e_35"),
+                blockPairings = mapOf("e_35" to "p_63")
+            ),
+            playerIsAttacking = false,
+            logs = mutableListOf()
+        )
+        val damagedUnit = afterCombat.enemyBoard.first { it.instanceId == "e_35" }
+        assertEquals(5, damagedUnit.power)
+        assertEquals(2, damagedUnit.health)
+        assertEquals(7, damagedUnit.maxHealth)
+
+        // Next round: subtract +2|+2 and remove TOUGH -> 3/0 and dies
+        val nextRound = CombatEngine.advanceToNextRound(afterCombat, mutableListOf())
+        assertFalse(nextRound.enemyBoard.any { it.instanceId == "e_35" })
+        assertTrue(nextRound.enemyGraveyard.any { it.id == "card_fleetfeather_tracker" })
+    }
+
+    @Test
+    fun `emptyManaGemGrantsTemporaryManaForNextRoundOnlyAndRevertsWhenNotTriggered`() {
+        val adv = AdventureCatalog.getAdventure("adv_demacia_outskirts")
+        val node = adv.mapNodes.first { it.id == "d_fight_1a" }
+        val arrow1 = HandCardInstance("hc_arr_1", CardCatalog.getCard("card_frozen_arrow"), effectiveCost = 1)
+        val arrow2 = HandCardInstance("hc_arr_2", CardCatalog.getCard("card_frozen_arrow"), effectiveCost = 1)
+        val enemy = UnitOnBoard("e1", CardCatalog.getCard("card_cithria"), false, 2, 4, 4, emptySet())
+
+        // Turn 1 starts at 3 mana. Casting 1 Elemental spell grants 1 empty mana gem.
+        var state = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_anivia",
+            starLevel = 3,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 1,
+            playerNexusHp = 40,
+            playerMaxHp = 40,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 3,
+            playerMaxMana = 3,
+            playerHand = listOf(arrow1, arrow2),
+            enemyBoard = listOf(enemy),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+
+        state = CombatEngine.playCardFromHand(state, "hc_arr_1", targetUnitId = "e1")
+        assertEquals(3, state.playerMaxMana)
+        assertEquals(2, state.playerMana)
+        assertEquals(1, state.pendingEmptyManaGems)
+
+        // Turn 2: base 4 + 1 temporary from Turn 1's empty mana gem = 5 mana
+        val turn2 = CombatEngine.advanceToNextRound(state, mutableListOf())
+        assertEquals(5, turn2.playerMaxMana)
+        assertEquals(5, turn2.playerMana)
+        assertEquals(1, turn2.playerTempManaFromEmptyGems)
+        assertEquals(0, turn2.pendingEmptyManaGems)
+
+        // Turn 3 (no empty mana gem triggered in Turn 2): returns to base 5 mana
+        val turn3 = CombatEngine.advanceToNextRound(turn2, mutableListOf())
+        assertEquals(5, turn3.playerMaxMana)
+        assertEquals(5, turn3.playerMana)
+        assertEquals(0, turn3.playerTempManaFromEmptyGems)
+
+        // Also check 2 empty mana gems in Turn 1 (3 -> 6 in Turn 2 -> 5 in Turn 3)
+        var twoGemsTurn1 = state.copy(pendingEmptyManaGems = 0)
+        twoGemsTurn1 = CombatEngine.gainPlayerManaGem(twoGemsTurn1, empty = true, mutableListOf())
+        twoGemsTurn1 = CombatEngine.gainPlayerManaGem(twoGemsTurn1, empty = true, mutableListOf())
+        val twoGemsTurn2 = CombatEngine.advanceToNextRound(twoGemsTurn1, mutableListOf())
+        assertEquals(6, twoGemsTurn2.playerMaxMana)
+        assertEquals(2, twoGemsTurn2.playerTempManaFromEmptyGems)
+        val twoGemsTurn3 = CombatEngine.advanceToNextRound(twoGemsTurn2, mutableListOf())
+        assertEquals(5, twoGemsTurn3.playerMaxMana)
+        assertEquals(0, twoGemsTurn3.playerTempManaFromEmptyGems)
+    }
+
+    @Test
+    fun `emptyManaGemTemporaryManaTriggersEnlightenedAtRoundStartAndAniviaLevelUp`() {
+        val adv = AdventureCatalog.getAdventure("adv_demacia_outskirts")
+        val node = adv.mapNodes.first { it.id == "d_fight_1a" }
+        val aniviaLv1 = UnitOnBoard(
+            instanceId = "u_anv",
+            template = CardCatalog.getCard("card_anivia"),
+            ownerIsPlayer = true,
+            power = 3,
+            health = 5,
+            maxHealth = 5,
+            keywords = setOf(Keyword.ELEMENTAL),
+            isLeveledUp = false
+        )
+        val turn8State = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_anivia",
+            starLevel = 3,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 8,
+            playerNexusHp = 40,
+            playerMaxHp = 40,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 8,
+            playerMaxMana = 8,
+            isEnlightened = false,
+            playerBoard = listOf(aniviaLv1),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+
+        // Gain 1 empty mana gem at 8 mana -> Turn 9 becomes 9 + 1 = 10 mana -> Enlightened triggers!
+        val withEmptyGem = CombatEngine.gainPlayerManaGem(turn8State, empty = true, mutableListOf())
+        assertEquals(8, withEmptyGem.playerMaxMana)
+        assertEquals(1, withEmptyGem.pendingEmptyManaGems)
+        assertFalse(withEmptyGem.isEnlightened)
+
+        val turn9 = CombatEngine.advanceToNextRound(withEmptyGem, mutableListOf())
+        assertEquals(10, turn9.playerMaxMana)
+        assertEquals(10, turn9.playerMana)
+        assertEquals(1, turn9.playerTempManaFromEmptyGems)
+        assertTrue(turn9.isEnlightened)
+        val leveledAnivia = turn9.playerBoard.single()
+        assertTrue(leveledAnivia.isLeveledUp)
+        assertEquals(4, leveledAnivia.power)
+        assertEquals(6, leveledAnivia.health)
+    }
+
+    @Test
+    fun `tryndamere lv1 levels up instead of dying and plucky poro gains keywords when buffed`() {
+        val adv = AdventureCatalog.getAdventure("adv_demacia_outskirts")
+        val node = adv.mapNodes.first { it.id == "d_fight_1a" }
+        val trynd = UnitOnBoard(
+            instanceId = "u_trynd",
+            template = CardCatalog.getCard("card_tryndamere"),
+            ownerIsPlayer = true,
+            power = 8,
+            health = 6,
+            maxHealth = 6,
+            keywords = setOf(Keyword.OVERWHELM),
+            isLeveledUp = false
+        )
+        val pluckyPoro = UnitOnBoard(
+            instanceId = "u_plucky",
+            template = CardCatalog.getCard("card_plucky_poro"),
+            ownerIsPlayer = true,
+            power = 1,
+            health = 3,
+            maxHealth = 3,
+            keywords = emptySet()
+        )
+        val elixirCard = HandCardInstance(
+            instanceId = "hc_elixir",
+            template = CardCatalog.getCard("card_elixir_of_iron"),
+            effectiveCost = 1
+        )
+        val deckUnit = HandCardInstance(
+            instanceId = "hc_deck_mighty",
+            template = CardCatalog.getCard("card_mighty_poro"),
+            effectiveCost = 3
+        )
+
+        val state = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_tryndamere",
+            starLevel = 1,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 1,
+            playerNexusHp = 30,
+            playerMaxHp = 30,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 5,
+            playerMaxMana = 5,
+            playerBoard = listOf(trynd, pluckyPoro),
+            playerHand = listOf(elixirCard),
+            playerDrawPile = listOf(deckUnit),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+
+        // Lethal damage against Tryndamere Lv1 levels him up to 9|9 (Fearsome + Tough) instead of killing him
+        val afterLethal = CombatEngine.damageUnit(state, "u_trynd", isEnemy = false, damage = 10, logs = mutableListOf())
+        val leveledTrynd = afterLethal.playerBoard.firstOrNull { it.instanceId == "u_trynd" }
+        assertNotNull(leveledTrynd)
+        assertTrue(leveledTrynd!!.isLeveledUp)
+        assertEquals(9, leveledTrynd.power)
+        assertEquals(9, leveledTrynd.health)
+        assertTrue(leveledTrynd.keywords.contains(Keyword.FEARSOME))
+        assertTrue(leveledTrynd.keywords.contains(Keyword.TOUGH))
+        assertTrue(afterLethal.playerGraveyard.isEmpty())
+
+        // Buffing Plucky Poro via Elixir of Iron grants +0|+2 AND permanently empowers it with Regeneration, Overwhelm, Tough
+        val afterElixir = CombatEngine.resolveSingleSpellEffect(
+            afterLethal,
+            elixirCard.template,
+            targetUnitId = "u_plucky",
+            sourceIsPlayer = true,
+            logs = mutableListOf()
+        )
+        val buffedPoro = afterElixir.playerBoard.first { it.instanceId == "u_plucky" }
+        assertEquals(5, buffedPoro.maxHealth)
+        assertTrue(buffedPoro.keywords.contains(Keyword.REGENERATION))
+        assertTrue(buffedPoro.keywords.contains(Keyword.OVERWHELM))
+        assertTrue(buffedPoro.keywords.contains(Keyword.TOUGH))
+        // Nearest unit in deck also received +1|+1 from Elixir of Iron
+        assertEquals(1, afterElixir.playerDrawPile.single().bonusPower)
+        assertEquals(1, afterElixir.playerDrawPile.single().bonusHealth)
+    }
+
+    @Test
+    fun `phong han applies frostbite and agitated and summons poro while agitated expires at round end`() {
+        val adv = AdventureCatalog.getAdventure("adv_demacia_outskirts")
+        val node = adv.mapNodes.first { it.id == "d_fight_1a" }
+        val enemy = UnitOnBoard(
+            instanceId = "e_target",
+            template = CardCatalog.getCard("card_cithria"),
+            ownerIsPlayer = false,
+            power = 5,
+            health = 5,
+            maxHealth = 5,
+            keywords = emptySet()
+        )
+        val state = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_tryndamere",
+            starLevel = 1,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 1,
+            playerNexusHp = 30,
+            playerMaxHp = 30,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 4,
+            playerMaxMana = 4,
+            enemyBoard = listOf(enemy),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+
+        val afterPhongHan = CombatEngine.resolveSingleSpellEffect(
+            state,
+            CardCatalog.getCard("card_phong_han"),
+            targetUnitId = "e_target",
+            sourceIsPlayer = true,
+            logs = mutableListOf()
+        )
+        val agitatedEnemy = afterPhongHan.enemyBoard.first { it.instanceId == "e_target" }
+        assertTrue(agitatedEnemy.isFrostbitten)
+        assertEquals(0, agitatedEnemy.strikePower)
+        assertTrue(agitatedEnemy.keywords.contains(Keyword.AGITATED))
+        // Summons 1|1 Poro for player
+        assertEquals(1, afterPhongHan.playerBoard.size)
+        assertEquals(1, afterPhongHan.playerBoard.single().power)
+        assertEquals(1, afterPhongHan.playerBoard.single().health)
+
+        // Agitated increases all incoming damage by +1 (2 spell damage deals 3 damage)
+        val afterMystic = CombatEngine.resolveSingleSpellEffect(
+            afterPhongHan,
+            CardCatalog.getCard("card_mystic_shot"),
+            targetUnitId = "e_target",
+            sourceIsPlayer = true,
+            logs = mutableListOf()
+        )
+        assertEquals(2, afterMystic.enemyBoard.first { it.instanceId == "e_target" }.health)
+
+        // Round end removes round-temporary Agitated and Frostbite
+        val nextRound = CombatEngine.advanceToNextRound(afterMystic, mutableListOf())
+        val recoveredEnemy = nextRound.enemyBoard.first { it.instanceId == "e_target" }
+        assertFalse(recoveredEnemy.keywords.contains(Keyword.AGITATED))
+        assertFalse(recoveredEnemy.isFrostbitten)
+    }
+
+    @Test
+    fun `tryndamere deck buffs ruthless boar empty mana gem and glacial saurian draw work accurately`() {
+        val adv = AdventureCatalog.getAdventure("adv_demacia_outskirts")
+        val node = adv.mapNodes.first { it.id == "d_fight_1a" }
+        val boarCard = HandCardInstance(
+            instanceId = "hc_boar",
+            template = CardCatalog.getCard("card_ruthless_boar"),
+            effectiveCost = 3
+        )
+        val saurianCard = HandCardInstance(
+            instanceId = "hc_saurian",
+            template = CardCatalog.getCard("card_glacial_saurian"),
+            effectiveCost = 4
+        )
+        val deckSaurianOther = HandCardInstance(
+            instanceId = "hc_deck_saurian",
+            template = CardCatalog.getCard("card_glacial_saurian"),
+            effectiveCost = 4
+        )
+        val deckSnowdog = HandCardInstance(
+            instanceId = "hc_deck_dog",
+            template = CardCatalog.getCard("card_yadulsk_snowdog"),
+            effectiveCost = 2
+        )
+        val deckPoro = HandCardInstance(
+            instanceId = "hc_deck_poro",
+            template = CardCatalog.getCard("card_mighty_poro"),
+            effectiveCost = 3
+        )
+
+        val state = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_tryndamere",
+            starLevel = 2,
+            equippedRelics = listOf(CardCatalog.getRelic("R0131")),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 1,
+            playerNexusHp = 30,
+            playerMaxHp = 30,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 10,
+            playerMaxMana = 10,
+            playerHand = listOf(boarCard, saurianCard),
+            playerDrawPile = listOf(deckSaurianOther, deckSnowdog, deckPoro),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+
+        // Summon Glacial Saurian: buffs top 3 allies in deck (doubled by R0131 Warlord's Helmet for Tryndamere!)
+        // AND draws 1 ally with a subtype different from "REPTILE" (draws deckSnowdog!)
+        val afterSaurian = CombatEngine.playCardFromHand(state, "hc_saurian")
+        assertTrue(afterSaurian.playerBoard.any { it.template.id == "card_glacial_saurian" })
+        val drawnDog = afterSaurian.playerHand.firstOrNull { it.instanceId == "hc_deck_dog" }
+        assertNotNull("Expected Glacial Saurian to draw a unit of different subtype", drawnDog)
+        assertEquals(2, drawnDog!!.bonusPower)
+        assertEquals(2, drawnDog.bonusHealth)
+
+        // Play Ruthless Boar, then kill it -> grants 1 empty mana gem (pendingEmptyManaGems + 1)
+        val afterBoarPlay = CombatEngine.playCardFromHand(afterSaurian.copy(priorityHolder = PriorityHolder.PLAYER), "hc_boar")
+        val boarUnitId = afterBoarPlay.playerBoard.first { it.template.id == "card_ruthless_boar" }.instanceId
+        val afterBoarDies = CombatEngine.damageUnit(afterBoarPlay, boarUnitId, isEnemy = false, damage = 10, logs = mutableListOf())
+        assertEquals(1, afterBoarDies.pendingEmptyManaGems)
+    }
+
+    @Test
+    fun `tryndamere constellation star powers 1 to 6 and call to arms work accurately`() {
+        // Verify championSpellIdFor covers all 8 champions and points to valid templates
+        val expectedChampSpells = mapOf(
+            "card_tryndamere" to "card_tryndamere_battle_fury",
+            "card_anivia" to "card_anivia_harsh_winds",
+            "card_jinx" to "card_get_excited",
+            "card_lux" to "card_prismatic_barrier",
+            "card_yasuo" to "card_steel_tempest",
+            "card_garen" to "card_single_combat",
+            "card_ashe" to "card_flash_freeze",
+            "card_karma" to "card_time_trick"
+        )
+        expectedChampSpells.forEach { (champId, spellId) ->
+            assertEquals(spellId, CardCatalog.championSpellIdFor(champId))
+            assertNotNull("Expected champion spell $spellId in catalog", CardCatalog.findCardOrNull(spellId))
+        }
+
+        val adv = AdventureCatalog.getAdventure("adv_demacia_outskirts")
+        val node = adv.mapNodes.first { it.id == "d_fight_1a" }
+        val tryndChamp = CardCatalog.getChampion("champ_tryndamere")
+        val tryndRun = RunState(
+            runId = "run_trynd_constellation",
+            adventureId = adv.id,
+            championId = "champ_tryndamere",
+            currentNodeId = node.id,
+            completedNodeIds = emptyList(),
+            currentNexusHp = 40,
+            maxNexusHp = 40,
+            gold = 200,
+            rerollsRemaining = 3,
+            revivesRemaining = 1,
+            activePowerIds = emptyList(),
+            runDeck = tryndChamp.baseDeck
+        )
+
+        // 1★: Lời Thề Chiến Tướng triggers ONLY when playerHasAttackToken: creates cost-5 Lệnh Nhập Ngũ, reduces by 2 if already in hand
+        val oneStarLoadout = ChampionLoadout(championId = "champ_tryndamere", isUnlocked = true, starLevel = 1, championLevel = 30)
+        var oneStarState = CombatEngine.createEncounter(tryndRun, oneStarLoadout, adv, node)
+        assertEquals(1, oneStarState.playerHand.count { it.template.id == "card_call_to_arms" })
+        assertEquals(5, oneStarState.playerHand.first { it.template.id == "card_call_to_arms" }.effectiveCost)
+        // Round 2: Enemy attack turn -> no cost reduction at 1★
+        oneStarState = CombatEngine.advanceToNextRound(oneStarState, mutableListOf())
+        assertEquals(5, oneStarState.playerHand.first { it.template.id == "card_call_to_arms" }.effectiveCost)
+        // Round 3: Player attack turn -> reduces cost 5 -> 3
+        oneStarState = CombatEngine.advanceToNextRound(oneStarState, mutableListOf())
+        assertEquals(3, oneStarState.playerHand.first { it.template.id == "card_call_to_arms" }.effectiveCost)
+
+        // 2★: Say Máu grants +1|+1 to 1 random ally unit in playerDrawPile when allies attack
+        val attackerUnit = UnitOnBoard(
+            instanceId = "u_attacker",
+            template = CardCatalog.getCard("card_mighty_poro"),
+            ownerIsPlayer = true,
+            power = 5,
+            health = 5,
+            maxHealth = 5,
+            keywords = emptySet()
+        )
+        val deckUnitA = HandCardInstance("hc_deck_a", CardCatalog.getCard("card_mighty_poro"), effectiveCost = 3)
+        val deckSpell = HandCardInstance("hc_deck_spell", CardCatalog.getCard("card_phong_han"), effectiveCost = 2)
+        val deckUnitB = HandCardInstance("hc_deck_b", CardCatalog.getCard("card_avarosan_hearthguard"), effectiveCost = 5)
+        val twoStarState = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_tryndamere",
+            starLevel = 2,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 1,
+            playerNexusHp = 40,
+            playerMaxHp = 40,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 3,
+            playerMaxMana = 3,
+            playerHasAttackToken = true,
+            playerBoard = listOf(attackerUnit),
+            playerDrawPile = listOf(deckUnitA, deckSpell, deckUnitB),
+            phase = CombatPhase.COMBAT_DECLARE_ATTACK_PHASE,
+            priorityHolder = PriorityHolder.PLAYER,
+            attackingUnitIds = listOf("u_attacker")
+        )
+        val afterAttack = CombatEngine.commitPlayerAttack(twoStarState)
+        val unitBuffTotal = afterAttack.playerDrawPile
+            .filter { it.template.type != CardType.SPELL }
+            .sumOf { it.bonusPower }
+        assertEquals(1, unitBuffTotal)
+        assertEquals(unitBuffTotal, afterAttack.playerDrawPile.filter { it.template.type != CardType.SPELL }.sumOf { it.bonusHealth })
+        assertEquals(0, afterAttack.playerDrawPile.first { it.instanceId == "hc_deck_spell" }.bonusPower)
+
+        // 3★: Lời Thề Chiến Tướng II reduces cost of Lệnh Nhập Ngũ by 2 EVERY round regardless of attack token (5 -> 3 -> 1 -> 0)
+        val threeStarLoadout = oneStarLoadout.copy(starLevel = 3)
+        var threeStarState = CombatEngine.createEncounter(tryndRun, threeStarLoadout, adv, node)
+        assertEquals(5, threeStarState.playerHand.first { it.template.id == "card_call_to_arms" }.effectiveCost)
+        threeStarState = CombatEngine.advanceToNextRound(threeStarState, mutableListOf())
+        assertEquals(3, threeStarState.playerHand.first { it.template.id == "card_call_to_arms" }.effectiveCost)
+        threeStarState = CombatEngine.advanceToNextRound(threeStarState, mutableListOf())
+        assertEquals(1, threeStarState.playerHand.first { it.template.id == "card_call_to_arms" }.effectiveCost)
+        threeStarState = CombatEngine.advanceToNextRound(threeStarState, mutableListOf())
+        assertEquals(0, threeStarState.playerHand.first { it.template.id == "card_call_to_arms" }.effectiveCost)
+
+        // 4★: Địa Hình Hiểm Trở frostbites ONLY the first enemy unit summoned per round, resetting on next round
+        val fourStarBase = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_tryndamere",
+            starLevel = 4,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 1,
+            playerNexusHp = 40,
+            playerMaxHp = 40,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 3,
+            playerMaxMana = 3,
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.ENEMY
+        )
+        val afterEnemy1 = CombatEngine.summonEnemyUnitFromPool(
+            fourStarBase,
+            chosen = CardCatalog.getCard("card_cithria"),
+            spendMana = 0,
+            logs = mutableListOf()
+        )
+        assertTrue(afterEnemy1.enemySummonedThisRound)
+        assertTrue(afterEnemy1.enemyBoard[0].isFrostbitten)
+        assertEquals(0, afterEnemy1.enemyBoard[0].strikePower)
+
+        val afterEnemy2 = CombatEngine.summonEnemyUnitFromPool(
+            afterEnemy1,
+            chosen = CardCatalog.getCard("card_cithria"),
+            spendMana = 0,
+            logs = mutableListOf()
+        )
+        assertFalse(afterEnemy2.enemyBoard[1].isFrostbitten)
+        assertTrue(afterEnemy2.enemyBoard[1].strikePower > 0)
+
+        val round2EnemyState = CombatEngine.advanceToNextRound(afterEnemy2, mutableListOf())
+        assertFalse(round2EnemyState.enemySummonedThisRound)
+        val round2Enemy3 = CombatEngine.summonEnemyUnitFromPool(
+            round2EnemyState,
+            chosen = CardCatalog.getCard("card_cithria"),
+            spendMana = 0,
+            logs = mutableListOf()
+        )
+        assertTrue(round2Enemy3.enemySummonedThisRound)
+        assertTrue(round2Enemy3.enemyBoard[2].isFrostbitten)
+
+        // 6★ + Lệnh Nhập Ngũ (CALL_TO_ARMS_EFFECT) + keepAsUnitInHand + Battle Fury (BURST) + Lv2 sync
+        val callCard = HandCardInstance("hc_cta", CardCatalog.getCard("card_call_to_arms"), effectiveCost = 0)
+        val fodderCard = HandCardInstance("hc_fodder", CardCatalog.getCard("card_plucky_poro"), effectiveCost = 1)
+        val deckTrynd = HandCardInstance("hc_deck_trynd", CardCatalog.getCard("card_tryndamere"), effectiveCost = 8)
+        val existingTryndOnBoard = UnitOnBoard(
+            instanceId = "u_trynd_board",
+            template = CardCatalog.getCard("card_tryndamere"),
+            ownerIsPlayer = true,
+            power = 8,
+            health = 6,
+            maxHealth = 6,
+            keywords = setOf(Keyword.OVERWHELM)
+        )
+
+        // Cannot play Lệnh Nhập Ngũ if it's the only card in hand
+        val soloHandState = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_tryndamere",
+            starLevel = 6,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 2,
+            playerNexusHp = 40,
+            playerMaxHp = 40,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 3,
+            playerMaxMana = 3,
+            playerHasAttackToken = false,
+            playerBoard = listOf(existingTryndOnBoard),
+            playerHand = listOf(callCard),
+            playerDrawPile = listOf(deckTrynd),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+        assertFalse(soloHandState.canPlayCard(callCard))
+
+        val sixStarState = soloHandState.copy(playerHand = listOf(callCard, fodderCard))
+        assertTrue(sixStarState.canPlayCard(callCard))
+        val afterCastCta = CombatEngine.playCardFromHand(sixStarState, "hc_cta")
+        assertNotNull(afterCastCta.pendingHandShuffleChoice)
+        assertEquals(listOf("hc_fodder"), afterCastCta.pendingHandShuffleChoice!!.candidateInstanceIds)
+
+        // Deterministic verification that keepAsUnitInHand keeps a Champion drawn by Lệnh Nhập Ngũ playable onto board (2+ Tryndameres!)
+        val ctaTryndState = CombatState(
+            encounterNode = node,
+            adventure = adv,
+            championId = "champ_tryndamere",
+            starLevel = 6,
+            equippedRelics = emptyList(),
+            activePowers = emptyList(),
+            mutators = emptyList(),
+            round = 2,
+            playerNexusHp = 40,
+            playerMaxHp = 40,
+            enemyNexusHp = 20,
+            enemyMaxHp = 20,
+            playerMana = 8,
+            playerMaxMana = 8,
+            playerHasAttackToken = false,
+            playerBoard = listOf(existingTryndOnBoard),
+            playerHand = listOf(callCard, HandCardInstance("hc_hand_trynd", CardCatalog.getCard("card_tryndamere"), effectiveCost = 8, keepAsUnitInHand = true)),
+            playerDrawPile = listOf(deckTrynd),
+            phase = CombatPhase.MAIN_ACTION_PHASE,
+            priorityHolder = PriorityHolder.PLAYER
+        )
+        val afterCtaPlayed = CombatEngine.playCardFromHand(ctaTryndState, "hc_cta")
+        assertNotNull(afterCtaPlayed.pendingHandShuffleChoice)
+        val afterShuffleTrynd = CombatEngine.resolveHandShuffleChoice(afterCtaPlayed, "hc_hand_trynd")
+        assertNull(afterShuffleTrynd.pendingHandShuffleChoice)
+        assertTrue(afterShuffleTrynd.playerHasAttackToken)
+        val drawnChamp = afterShuffleTrynd.playerHand.single()
+        assertEquals("card_tryndamere", drawnChamp.template.id)
+        assertTrue(drawnChamp.keepAsUnitInHand)
+        assertEquals(CardType.CHAMPION, drawnChamp.template.type)
+        val afterSecondTrynd = CombatEngine.playCardFromHand(afterShuffleTrynd.copy(playerMana = 8), drawnChamp.instanceId)
+        assertEquals(2, afterSecondTrynd.playerBoard.count { it.template.id == "card_tryndamere" })
+        val secondOnBoard = afterSecondTrynd.playerBoard.last()
+        assertEquals(16, secondOnBoard.power)
+        assertEquals(12, secondOnBoard.health)
+
+        // Verify 6★ ally summon doubling + round-end revert AND Battle Fury Burst (+8|+4 + shuffle Tryndamere) + Lv2 sync
+        val normalTryndInHand = HandCardInstance("hc_trynd_hand", CardCatalog.getCard("card_tryndamere"), effectiveCost = 8)
+        val allySummonState = CombatEngine.syncChampionSpellsInHand(
+            sixStarState.copy(
+                playerMana = 10,
+                playerHand = listOf(HandCardInstance("hc_mighty", CardCatalog.getCard("card_mighty_poro"), effectiveCost = 3), normalTryndInHand)
+            )
+        )
+        // Normal Tryndamere in hand transformed to BURST Champion Spell
+        val syncedSpell = allySummonState.playerHand.first { it.instanceId == "hc_trynd_hand" }
+        assertEquals("card_tryndamere_battle_fury", syncedSpell.template.id)
+        assertEquals(SpellSpeed.BURST, syncedSpell.template.spellSpeed)
+
+        // Summon Mighty Poro (3|3) -> doubled to 6|6 this round
+        val afterSummon = CombatEngine.playCardFromHand(allySummonState, "hc_mighty")
+        val doubledPoro = afterSummon.playerBoard.last()
+        assertEquals(6, doubledPoro.power)
+        assertEquals(6, doubledPoro.health)
+
+        // Cast Battle Fury (Burst) on Tryndamere (+8|+4) and verify 1 Tryndamere added to deck
+        val deckSizeBeforeFury = afterSummon.playerDrawPile.size
+        val afterFury = CombatEngine.playCardFromHand(
+            afterSummon.copy(priorityHolder = PriorityHolder.PLAYER),
+            "hc_trynd_hand",
+            targetUnitId = "u_trynd_board"
+        )
+        val buffedTrynd = afterFury.playerBoard.first { it.instanceId == "u_trynd_board" }
+        assertEquals(16, buffedTrynd.power)
+        assertEquals(10, buffedTrynd.health)
+        assertEquals(deckSizeBeforeFury + 1, afterFury.playerDrawPile.size)
+
+        // Round end reverts Mighty Poro 6|6 -> 3|3
+        val afterRoundEnd = CombatEngine.advanceToNextRound(afterFury, mutableListOf())
+        val revertedPoro = afterRoundEnd.playerBoard.first { it.instanceId == doubledPoro.instanceId }
+        assertEquals(3, revertedPoro.power)
+        assertEquals(3, revertedPoro.health)
+
+        // Tryndamere Lv1 lethal damage -> levels up to 9+extraPow | 9+extraHp with Overwhelm, Tough, Fearsome & syncs spell
+        val lethalCheckState = CombatEngine.syncChampionSpellsInHand(
+            sixStarState.copy(
+                playerHand = listOf(normalTryndInHand),
+                playerBoard = listOf(existingTryndOnBoard)
+            )
+        )
+        val afterLethal = CombatEngine.damageUnit(lethalCheckState, "u_trynd_board", isEnemy = false, damage = 99, isSpell = false, logs = mutableListOf())
+        val leveledTrynd = afterLethal.playerBoard.first { it.instanceId == "u_trynd_board" }
+        assertTrue(leveledTrynd.isLeveledUp)
+        assertEquals(9, leveledTrynd.power)
+        assertEquals(9, leveledTrynd.health)
+        assertTrue(leveledTrynd.keywords.containsAll(setOf(Keyword.OVERWHELM, Keyword.TOUGH, Keyword.FEARSOME)))
+        assertEquals("card_tryndamere_battle_fury", afterLethal.playerHand.single().template.id)
     }
 
 }

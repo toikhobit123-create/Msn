@@ -257,6 +257,11 @@ enum class Keyword(
         "Dễ Tổn Thương", KeywordCategory.NEGATIVE_STATUS, false, false,
         "Kẻ địch có thể khiêu khích đơn vị này, ép buộc nó phải chặn đòn."
     ),
+    AGITATED(
+        "Agitated",
+        "Kích Động", KeywordCategory.NEGATIVE_STATUS, false, false,
+        "Kẻ địch có thể khiêu khích đơn vị này, ép buộc nó phải chặn đòn. Đơn vị này nhận thêm 1 sát thương từ mọi nguồn."
+    ),
     STUN(
         "Stun",
         "Choáng", KeywordCategory.NEGATIVE_STATUS, false, false,

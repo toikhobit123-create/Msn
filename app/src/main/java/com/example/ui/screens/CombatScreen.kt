@@ -151,6 +151,7 @@ fun CombatScreen(
     onPlayCard: (String) -> Unit,
     onPlayTargetedCard: (String, String?) -> Unit = { cardId, _ -> onPlayCard(cardId) },
     onChooseFollowerTransform: (String) -> Unit = {},
+    onChooseHandCardToShuffle: (String) -> Unit = {},
     onEnterAttack: () -> Unit,
     onCancelAttack: () -> Unit,
     onToggleAttacker: (String) -> Unit,
@@ -1098,7 +1099,9 @@ fun CombatScreen(
                 val activeChallengerId = combat.selectedAttackerForChallenger
                 val activeChallengerUnit = combat.playerBoard.find { it.instanceId == activeChallengerId }
                 val canPullTarget = activeChallengerUnit != null &&
-                    (activeChallengerUnit.keywords.contains(Keyword.CHALLENGER) || unit.keywords.contains(Keyword.VULNERABLE))
+                    (activeChallengerUnit.keywords.contains(Keyword.CHALLENGER) ||
+                        unit.keywords.contains(Keyword.VULNERABLE) ||
+                        unit.keywords.contains(Keyword.AGITATED))
                 if (unit.template.type != CardType.LANDMARK && !unit.isStunned && !unit.isShackled && canPullTarget) {
                     onChallengeEnemyUnit(activeChallengerId, unit.instanceId)
                 } else {
@@ -1144,7 +1147,7 @@ fun CombatScreen(
                         if (combat.playerHasAttackToken && combat.playerInitiatedCombat && combat.spellStack.isEmpty()) {
                             val isAttacking = combat.attackingUnitIds.contains(unit.instanceId)
                             val hasVulnerableTarget = combat.enemyBoard.any {
-                                it.keywords.contains(Keyword.VULNERABLE) &&
+                                (it.keywords.contains(Keyword.VULNERABLE) || it.keywords.contains(Keyword.AGITATED)) &&
                                     it.template.type != CardType.LANDMARK &&
                                     !it.isStunned &&
                                     !it.isShackled
@@ -2220,6 +2223,16 @@ fun CombatScreen(
             optionCardIds = choice.optionCardIds,
             onChoose = onChooseFollowerTransform
         )
+    }
+    combat.pendingHandShuffleChoice?.let { choice ->
+        val candidates = combat.playerHand.filter { it.instanceId in choice.candidateInstanceIds }
+        if (candidates.isNotEmpty()) {
+            HandShuffleChoiceDialog(
+                title = choice.sourceSpellName,
+                handCards = candidates,
+                onChoose = onChooseHandCardToShuffle
+            )
+        }
     }
     CombatGameOverDialog(
         combat = combat,

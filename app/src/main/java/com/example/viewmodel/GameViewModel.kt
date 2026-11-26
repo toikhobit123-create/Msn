@@ -1122,6 +1122,12 @@ class GameViewModel(
         }
     }
 
+    fun chooseHandCardToShuffle(handInstanceId: String) {
+        updatePlayerCombatState(scheduleAiOnChange = true) { current ->
+            CombatEngine.resolveHandShuffleChoice(current, handInstanceId)
+        }
+    }
+
     fun enterAttack() {
         updatePlayerCombatState { current ->
             CombatEngine.enterAttackDeclaration(current)

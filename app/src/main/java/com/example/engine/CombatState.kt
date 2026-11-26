@@ -45,6 +45,11 @@ data class PendingFollowerTransform(
     val optionCardIds: List<String>
 )
 
+data class PendingHandShuffleChoice(
+    val sourceSpellName: String,
+    val candidateInstanceIds: List<String>
+)
+
 data class CombatState(
     val encounterNode: MapNode,
     val adventure: AdventureConfig,
@@ -120,6 +125,8 @@ data class CombatState(
     val enemySuppressionCount: Int = 0,
     val enemyTerrorCount: Int = 0,
     val playerElementalAndSkillsPlayed: Int = 0,
+    val pendingEmptyManaGems: Int = 0,
+    val playerTempManaFromEmptyGems: Int = 0,
     val isEnlightened: Boolean = false,
 
     val isFreeAttack: Boolean = false,
@@ -149,10 +156,12 @@ data class CombatState(
     val followersPlayedThisRound: Int = 0,
     val renewingPowerUsedThisRound: Boolean = false,
     val stoleEnemyCreatedCardThisRound: Boolean = false,
+    val enemySummonedThisRound: Boolean = false,
     val playerChampionCostReductionEverywhere: Int = 0,
     val enemyDeckTrapsCount: Int = 0,
     val playerSlainCount: Int = 0,
     val pendingTransformChoice: PendingFollowerTransform? = null,
+    val pendingHandShuffleChoice: PendingHandShuffleChoice? = null,
 
     val playerWon: Boolean? = null,
     val combatLog: List<String> = emptyList()
@@ -271,6 +280,9 @@ data class CombatState(
 
         val blockReason = when {
             pendingTransformChoice != null -> "Hãy chọn bài quân biến đổi trước"
+            pendingHandShuffleChoice != null -> "Hãy chọn 1 lá bài trên tay để xáo vào bộ bài trước"
+            card.template.effectType == CardEffectType.CALL_TO_ARMS_EFFECT && playerHand.size <= 1 ->
+                "Cần ít nhất 1 lá bài khác trên tay"
             !hasEnoughMana -> if (payWithHealth) {
                 "Không đủ Máu Nhà Chính (cần > $cost Máu)"
             } else if (isSpellLike) {

@@ -334,25 +334,51 @@ fun CardTile(
             if (tileArtRes != null && !compact) {
                 val isSpellCard = template.type == CardType.SPELL
                 val artShape = if (isSpellCard) RoundedCornerShape(GameRadius.panel) else RoundedCornerShape(GameRadius.control)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                        .padding(horizontal = if (isSpellCard) GameSpacing.md else 0.dp)
-                        .clip(artShape)
-                        .background(BgDeep)
-                        .border(
-                            width = 1.dp,
-                            color = if (isSpellCard) AccentIce.copy(alpha = 0.55f) else BorderSubtle,
-                            shape = artShape
+                if (isFullFrameCardArt(template.id)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 210.dp, max = 270.dp)
+                            .clip(artShape)
+                            .background(BgDeep)
+                            .border(
+                                width = 1.dp,
+                                color = if (isSpellCard) AccentIce.copy(alpha = 0.55f) else BorderSubtle,
+                                shape = artShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = tileArtRes),
+                            contentDescription = template.name,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 210.dp, max = 270.dp)
+                                .padding(GameSpacing.xs)
                         )
-                ) {
-                    Image(
-                        painter = painterResource(id = tileArtRes),
-                        contentDescription = template.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .padding(horizontal = if (isSpellCard) GameSpacing.md else 0.dp)
+                            .clip(artShape)
+                            .background(BgDeep)
+                            .border(
+                                width = 1.dp,
+                                color = if (isSpellCard) AccentIce.copy(alpha = 0.55f) else BorderSubtle,
+                                shape = artShape
+                            )
+                    ) {
+                        Image(
+                            painter = painterResource(id = tileArtRes),
+                            contentDescription = template.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
@@ -608,6 +634,21 @@ fun StatBadge(
     }
 }
 
+private val FULL_FRAME_CARD_IDS = setOf(
+    "card_tryndamere",
+    "card_tryndamere_battle_fury",
+    "card_elixir_of_iron",
+    "card_plucky_poro",
+    "card_phong_han",
+    "card_yadulsk_snowdog",
+    "card_ruthless_boar",
+    "card_mighty_poro",
+    "card_avarosan_hearthguard",
+    "card_glacial_saurian"
+)
+
+fun isFullFrameCardArt(cardId: String): Boolean = cardId in FULL_FRAME_CARD_IDS
+
 @DrawableRes
 fun cardPortraitRes(cardId: String): Int? = when (cardId) {
     "card_jinx", "card_super_mega_rocket" -> R.drawable.img_champ_jinx
@@ -615,6 +656,15 @@ fun cardPortraitRes(cardId: String): Int? = when (cardId) {
     "card_yasuo", "card_steel_tempest" -> R.drawable.img_champ_yasuo
     "card_anivia" -> R.drawable.img_champ_anivia
     "card_eggnivia" -> R.drawable.img_anivia_egg
+    "card_tryndamere", "card_tryndamere_battle_fury" -> R.drawable.img_champ_tryndamere
+    "card_elixir_of_iron" -> R.drawable.img_elixir_of_iron
+    "card_plucky_poro" -> R.drawable.img_plucky_poro
+    "card_phong_han" -> R.drawable.img_phong_han
+    "card_yadulsk_snowdog" -> R.drawable.img_yadulsk_snowdog
+    "card_ruthless_boar" -> R.drawable.img_ruthless_boar
+    "card_mighty_poro" -> R.drawable.img_mighty_poro
+    "card_avarosan_hearthguard" -> R.drawable.img_avarosan_hearthguard
+    "card_glacial_saurian" -> R.drawable.img_glacial_saurian
     "card_wild_mystics" -> R.drawable.img_wild_mystics
     "card_mortal_prophet" -> R.drawable.img_mortal_prophet
     "card_guardian_follower" -> R.drawable.img_guardian_follower
@@ -623,7 +673,8 @@ fun cardPortraitRes(cardId: String): Int? = when (cardId) {
     "card_harsh_winds", "card_anivia_harsh_winds", "card_frozen_arrow", "card_flash_freeze" -> R.drawable.img_harsh_winds
     "card_wings_of_cryophoenix", "skill_glacial_storm" -> R.drawable.img_wings_of_cryophoenix
     "card_clash_of_giants", "card_freljord_titan", "card_glacial_colossus", "card_ancient_yeti",
-    "card_uzgar", "card_rhasa", "card_rumul", "card_lost_soul", "card_twinblade_revenant" -> R.drawable.img_clash_of_giants
+    "card_uzgar", "card_rhasa", "card_rumul", "card_lost_soul", "card_twinblade_revenant",
+    "card_call_to_arms" -> R.drawable.img_clash_of_giants
     "card_fiora" -> R.drawable.img_fiora
     "card_laurent_bladekeeper" -> R.drawable.img_laurent_bladekeeper
     "card_badgerbear" -> R.drawable.img_badgerbear
@@ -783,249 +834,329 @@ fun HandCardView(
         border = borderStroke,
         shadowElevation = 0.dp
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Top Artwork Window with embedded Mana Gem & bottom-edge Nameplate Scrim
-                val isSpellCard = template.type == CardType.SPELL
-                val artShape = if (isSpellCard) RoundedCornerShape(GameRadius.card) else RoundedCornerShape(topStart = GameRadius.card, topEnd = GameRadius.card)
-                Box(
+        if (isFullFrameCardArt(template.id) && portraitRes != null) {
+            val itemBaseCost = maxOf(0, template.cost - handCard.attachedItems.sumOf { it.costReduction })
+            val itemBasePow = handCard.attachedItems.sumOf { it.bonusPower }
+            val itemBaseHp = handCard.attachedItems.sumOf { it.bonusHealth }
+            val hasModifiedCost = effectiveCost != itemBaseCost
+            val hasModifiedStats = hasUnitStats &&
+                (handCard.bonusPower != itemBasePow || handCard.bonusHealth != itemBaseHp)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(BgDeep),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = portraitRes),
+                    contentDescription = template.name,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(artHeight)
-                        .padding(
-                            start = if (isSpellCard) GameSpacing.xs else 0.dp,
-                            end = if (isSpellCard) GameSpacing.xs else 0.dp,
-                            top = if (isSpellCard) GameSpacing.xs else 0.dp
-                        )
-                        .clip(artShape)
-                        .background(SurfaceElevated)
-                        .then(
-                            if (isSpellCard) {
-                                Modifier.border(1.dp, AccentIce.copy(alpha = 0.55f), artShape)
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (portraitRes != null) {
-                        Image(
-                            painter = painterResource(id = portraitRes),
-                            contentDescription = template.name,
-                            contentScale = ContentScale.Crop,
-                            alignment = Alignment.TopCenter,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Icon(
-                            imageVector = when (template.type) {
-                                CardType.SPELL -> Icons.Outlined.AutoFixHigh
-                                CardType.CHAMPION -> Icons.Outlined.StarOutline
-                                CardType.EQUIPMENT -> Icons.Outlined.Gavel
-                                CardType.LANDMARK -> Icons.Outlined.HourglassBottom
-                                CardType.CURSE -> Icons.Outlined.Bolt
-                                CardType.UNIT -> Icons.Outlined.SportsKabaddi
-                            },
-                            contentDescription = template.name,
-                            tint = if (template.isChampion) AccentGold else regionColor,
-                            modifier = Modifier.size(cardWidth * 0.34f)
-                        )
-                    }
+                        .fillMaxSize()
+                        .padding(2.dp)
+                )
 
-                    if (showDetails) {
-                        // Bottom gradient scrim on artwork so card name stays razor-sharp
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(artHeight * 0.44f)
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(Color.Transparent, Color(0xE6080E1A))
-                                    )
-                                )
-                        )
-
+                if (hasModifiedCost) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(3.dp)
+                            .size(cardWidth * 0.25f)
+                            .zIndex(5f)
+                            .clip(CircleShape)
+                            .background(Color(0xEE0E1A2E))
+                            .border(
+                                width = 1.2.dp,
+                                color = if (playable) AccentIce else BorderSubtle,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = template.name,
-                            fontFamily = CinzelFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = nameFontSize,
-                            color = if (template.isChampion) AccentGold else TextPrimary,
-                            lineHeight = nameFontSize * 1.08f,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                            text = "$effectiveCost",
+                            style = statNumericStyle(tinyStatSize, if (playable) AccentIce else TextSecondary)
                         )
                     }
                 }
 
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = if (template.isChampion) BorderGoldMuted else BorderSubtle
-                )
+                if (isFleeting) {
+                    KeywordIcon(
+                        keyword = Keyword.FLEETING,
+                        size = cardWidth * 0.16f,
+                        contentDescription = Keyword.FLEETING.displayName,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(GameSpacing.xs)
+                            .zIndex(5f)
+                    )
+                }
 
-                // Lower Card Info Panel: Keywords / Spell Speed + Readable Effect Text + ATK/HP Stats
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(BgDeep)
-                        .padding(horizontal = 5.dp, vertical = 3.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    if (showDetails) {
-                        val mergedKeywords = remember(template.keywords, handCard.extraKeywords) {
-                            (template.keywords + handCard.extraKeywords).toList()
-                        }
-                        val kwHeader = if (mergedKeywords.isNotEmpty()) {
-                            mergedKeywords.take(2).joinToString(" • ") { it.displayName }
-                        } else if (template.spellSpeed != SpellSpeed.NONE) {
-                            template.spellSpeed.displayName
-                        } else null
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f, fill = false),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            if (kwHeader != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    mergedKeywords.take(2).forEach { kw ->
-                                        KeywordIcon(
-                                            keyword = kw,
-                                            size = 11.dp,
-                                            contentDescription = null
-                                        )
-                                    }
-                                    Text(
-                                        text = kwHeader,
-                                        fontFamily = PlusJakartaSansFamily,
-                                        fontSize = (infoFontSize.value * 0.94f).coerceAtLeast(7.2f).sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (template.spellSpeed != SpellSpeed.NONE && mergedKeywords.isEmpty()) AccentIce else AccentGold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                if (showDetails && hasModifiedStats) {
+                    val totalPow = template.basePower + handCard.bonusPower
+                    val totalHp = template.baseHealth + handCard.bonusHealth
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 3.dp)
+                            .zIndex(5f),
+                        shape = RoundedCornerShape(GameRadius.badge),
+                        color = Color(0xEC0E1A2E),
+                        border = BorderStroke(1.dp, AccentGold)
+                    ) {
+                        Text(
+                            text = "$totalPow|$totalHp",
+                            style = statNumericStyle(tinyStatSize, AccentGold),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Top Artwork Window with embedded Mana Gem & bottom-edge Nameplate Scrim
+                    val isSpellCard = template.type == CardType.SPELL
+                    val artShape = if (isSpellCard) RoundedCornerShape(GameRadius.card) else RoundedCornerShape(topStart = GameRadius.card, topEnd = GameRadius.card)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(artHeight)
+                            .padding(
+                                start = if (isSpellCard) GameSpacing.xs else 0.dp,
+                                end = if (isSpellCard) GameSpacing.xs else 0.dp,
+                                top = if (isSpellCard) GameSpacing.xs else 0.dp
+                            )
+                            .clip(artShape)
+                            .background(SurfaceElevated)
+                            .then(
+                                if (isSpellCard) {
+                                    Modifier.border(1.dp, AccentIce.copy(alpha = 0.55f), artShape)
+                                } else {
+                                    Modifier
                                 }
-                                HorizontalDivider(thickness = 0.6.dp, color = BorderSubtle.copy(alpha = 0.7f))
-                            }
-                            AutoShrinkText(
-                                text = template.description,
-                                fontFamily = InterFontFamily,
-                                maxFontSize = infoFontSize,
-                                minFontSize = 6.5.sp,
-                                color = TextPrimary.copy(alpha = 0.90f),
-                                maxLines = 6,
-                                modifier = Modifier.fillMaxWidth()
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (portraitRes != null) {
+                            Image(
+                                painter = painterResource(id = portraitRes),
+                                contentDescription = template.name,
+                                contentScale = ContentScale.Crop,
+                                alignment = Alignment.TopCenter,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = when (template.type) {
+                                    CardType.SPELL -> Icons.Outlined.AutoFixHigh
+                                    CardType.CHAMPION -> Icons.Outlined.StarOutline
+                                    CardType.EQUIPMENT -> Icons.Outlined.Gavel
+                                    CardType.LANDMARK -> Icons.Outlined.HourglassBottom
+                                    CardType.CURSE -> Icons.Outlined.Bolt
+                                    CardType.UNIT -> Icons.Outlined.SportsKabaddi
+                                },
+                                contentDescription = template.name,
+                                tint = if (template.isChampion) AccentGold else regionColor,
+                                modifier = Modifier.size(cardWidth * 0.34f)
                             )
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (handCard.attachedItems.isNotEmpty() && (hasUnitStats || isShowcasePreview)) {
-                                Icon(
-                                    imageVector = Icons.Outlined.AutoAwesome,
-                                    contentDescription = "Vật phẩm",
-                                    tint = AccentSpellMana,
-                                    modifier = Modifier.size(cardWidth * 0.14f)
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
+                        if (showDetails) {
+                            // Bottom gradient scrim on artwork so card name stays razor-sharp
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .height(artHeight * 0.44f)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(Color.Transparent, Color(0xE6080E1A))
+                                        )
+                                    )
+                            )
+
+                            Text(
+                                text = template.name,
+                                fontFamily = CinzelFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = nameFontSize,
+                                color = if (template.isChampion) AccentGold else TextPrimary,
+                                lineHeight = nameFontSize * 1.08f,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = if (template.isChampion) BorderGoldMuted else BorderSubtle
+                    )
+
+                    // Lower Card Info Panel: Keywords / Spell Speed + Readable Effect Text + ATK/HP Stats
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .background(BgDeep)
+                            .padding(horizontal = 5.dp, vertical = 3.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        if (showDetails) {
+                            val mergedKeywords = remember(template.keywords, handCard.extraKeywords) {
+                                (template.keywords + handCard.extraKeywords).toList()
                             }
-                            if (hasUnitStats) {
-                                val totalPow = template.basePower + handCard.bonusPower
-                                val totalHp = template.baseHealth + handCard.bonusHealth
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(GameRadius.badge))
-                                        .background(SurfaceElevated)
-                                        .border(1.dp, SemanticAttack.copy(alpha = 0.8f), RoundedCornerShape(GameRadius.badge))
-                                        .padding(horizontal = 5.dp, vertical = 1.dp)
-                                ) {
-                                    Text(
-                                        text = "$totalPow",
-                                        style = statNumericStyle(tinyStatSize, TextPrimary)
-                                    )
+                            val kwHeader = if (mergedKeywords.isNotEmpty()) {
+                                mergedKeywords.take(2).joinToString(" • ") { it.displayName }
+                            } else if (template.spellSpeed != SpellSpeed.NONE) {
+                                template.spellSpeed.displayName
+                            } else null
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                if (kwHeader != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        mergedKeywords.take(2).forEach { kw ->
+                                            KeywordIcon(
+                                                keyword = kw,
+                                                size = 11.dp,
+                                                contentDescription = null
+                                            )
+                                        }
+                                        Text(
+                                            text = kwHeader,
+                                            fontFamily = PlusJakartaSansFamily,
+                                            fontSize = (infoFontSize.value * 0.94f).coerceAtLeast(7.2f).sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (template.spellSpeed != SpellSpeed.NONE && mergedKeywords.isEmpty()) AccentIce else AccentGold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    HorizontalDivider(thickness = 0.6.dp, color = BorderSubtle.copy(alpha = 0.7f))
                                 }
-                                Spacer(modifier = Modifier.width(GameSpacing.xs))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(GameRadius.badge))
-                                        .background(SurfaceElevated)
-                                        .border(1.dp, SemanticDanger.copy(alpha = 0.8f), RoundedCornerShape(GameRadius.badge))
-                                        .padding(horizontal = 5.dp, vertical = 1.dp)
-                                ) {
-                                    Text(
-                                        text = "$totalHp",
-                                        style = statNumericStyle(tinyStatSize, TextPrimary)
+                                AutoShrinkText(
+                                    text = template.description,
+                                    fontFamily = InterFontFamily,
+                                    maxFontSize = infoFontSize,
+                                    minFontSize = 6.5.sp,
+                                    color = TextPrimary.copy(alpha = 0.90f),
+                                    maxLines = 6,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (handCard.attachedItems.isNotEmpty() && (hasUnitStats || isShowcasePreview)) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.AutoAwesome,
+                                        contentDescription = "Vật phẩm",
+                                        tint = AccentSpellMana,
+                                        modifier = Modifier.size(cardWidth * 0.14f)
                                     )
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(GameRadius.badge))
-                                        .background(SurfaceElevated)
-                                        .border(1.dp, AccentIce.copy(alpha = 0.65f), RoundedCornerShape(GameRadius.badge))
-                                        .padding(horizontal = 5.dp, vertical = 1.dp)
-                                ) {
-                                    Text(
-                                        text = template.spellSpeed.displayName,
-                                        fontFamily = PlusJakartaSansFamily,
-                                        fontSize = (infoFontSize.value * 0.90f).coerceAtLeast(7f).sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AccentIce,
-                                        maxLines = 1
-                                    )
+                                if (hasUnitStats) {
+                                    val totalPow = template.basePower + handCard.bonusPower
+                                    val totalHp = template.baseHealth + handCard.bonusHealth
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(GameRadius.badge))
+                                            .background(SurfaceElevated)
+                                            .border(1.dp, SemanticAttack.copy(alpha = 0.8f), RoundedCornerShape(GameRadius.badge))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = "$totalPow",
+                                            style = statNumericStyle(tinyStatSize, TextPrimary)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(GameSpacing.xs))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(GameRadius.badge))
+                                            .background(SurfaceElevated)
+                                            .border(1.dp, SemanticDanger.copy(alpha = 0.8f), RoundedCornerShape(GameRadius.badge))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = "$totalHp",
+                                            style = statNumericStyle(tinyStatSize, TextPrimary)
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(GameRadius.badge))
+                                            .background(SurfaceElevated)
+                                            .border(1.dp, AccentIce.copy(alpha = 0.65f), RoundedCornerShape(GameRadius.badge))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = template.spellSpeed.displayName,
+                                            fontFamily = PlusJakartaSansFamily,
+                                            fontSize = (infoFontSize.value * 0.90f).coerceAtLeast(7f).sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentIce,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // Top-Left Tabular Mana Gem
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(3.dp)
-                    .size(cardWidth * 0.25f)
-                    .zIndex(5f)
-                    .clip(CircleShape)
-                    .background(Color(0xEE0E1A2E))
-                    .border(
-                        width = 1.2.dp,
-                        color = if (playable) AccentIce else BorderSubtle,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "$effectiveCost",
-                    style = statNumericStyle(tinyStatSize, if (playable) AccentIce else TextSecondary)
-                )
-            }
-
-            if (isFleeting) {
-                KeywordIcon(
-                    keyword = Keyword.FLEETING,
-                    size = cardWidth * 0.16f,
-                    contentDescription = Keyword.FLEETING.displayName,
+                // Top-Left Tabular Mana Gem
+                Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(GameSpacing.xs)
-                )
+                        .align(Alignment.TopStart)
+                        .padding(3.dp)
+                        .size(cardWidth * 0.25f)
+                        .zIndex(5f)
+                        .clip(CircleShape)
+                        .background(Color(0xEE0E1A2E))
+                        .border(
+                            width = 1.2.dp,
+                            color = if (playable) AccentIce else BorderSubtle,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "$effectiveCost",
+                        style = statNumericStyle(tinyStatSize, if (playable) AccentIce else TextSecondary)
+                    )
+                }
+
+                if (isFleeting) {
+                    KeywordIcon(
+                        keyword = Keyword.FLEETING,
+                        size = cardWidth * 0.16f,
+                        contentDescription = Keyword.FLEETING.displayName,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(GameSpacing.xs)
+                    )
+                }
             }
         }
     }
@@ -1160,12 +1291,13 @@ fun UnitToken(
                         label = "unit_portrait_morph"
                     ) { resId ->
                         if (resId != null) {
+                            val isFullFrame = isFullFrameCardArt(unit.template.id)
                             Image(
                                 painter = painterResource(id = resId),
                                 contentDescription = unit.template.name,
-                                contentScale = ContentScale.Crop,
-                                alignment = Alignment.TopCenter,
-                                modifier = Modifier.fillMaxSize()
+                                contentScale = if (isFullFrame) ContentScale.Fit else ContentScale.Crop,
+                                alignment = if (isFullFrame) Alignment.Center else Alignment.TopCenter,
+                                modifier = if (isFullFrame) Modifier.fillMaxSize().padding(2.dp) else Modifier.fillMaxSize()
                             )
                         } else {
                             Box(

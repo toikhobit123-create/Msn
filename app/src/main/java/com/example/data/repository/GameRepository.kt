@@ -84,25 +84,27 @@ class GameRepository(
         }
 
         val defaultAniviaRelics = listOf("R0017", "R0082", "R0013")
+        val defaultTryndamereRelics = listOf("R0131", "R0082", "R0017")
         for (champ in CardCatalog.champions) {
             val existing = dao.getChampionLoadout(champ.id)
             if (existing == null) {
-                val initialRelics = if (champ.id == "champ_anivia") {
-                    defaultAniviaRelics
-                } else {
-                    listOf(null, null, null)
+                val initialRelics = when (champ.id) {
+                    "champ_anivia" -> defaultAniviaRelics
+                    "champ_tryndamere" -> defaultTryndamereRelics
+                    else -> listOf(null, null, null)
                 }
+                val isFeaturedChamp = champ.id == "champ_anivia" || champ.id == "champ_tryndamere"
                 val loadout = ChampionLoadout(
                     championId = champ.id,
                     isUnlocked = true,
-                    starLevel = if (champ.id == "champ_anivia") 2 else 1,
-                    championLevel = if (champ.id == "champ_anivia") 30 else 4,
+                    starLevel = if (isFeaturedChamp) 2 else 1,
+                    championLevel = if (isFeaturedChamp) 30 else 4,
                     championXp = 0,
                     fragments = 99_999,
                     unlockedConstellationNodes = emptyList(),
                     equippedRelics = initialRelics,
                     unlockedRelicSlots = 3,
-                    cosmicForgedSlots = if (champ.id == "champ_anivia") 3 else 0
+                    cosmicForgedSlots = if (isFeaturedChamp) 3 else 0
                 )
                 dao.upsertChampionLoadout(ChampionLoadoutEntity.fromDomain(loadout))
             } else {
@@ -113,6 +115,10 @@ class GameRepository(
                         domainLoadout.equippedRelics.all { it != null && it !in validRelicSet }
                     ) {
                         defaultAniviaRelics
+                    } else if (champ.id == "champ_tryndamere" &&
+                        domainLoadout.equippedRelics.all { it != null && it !in validRelicSet }
+                    ) {
+                        defaultTryndamereRelics
                     } else {
                         domainLoadout.equippedRelics.map { id -> if (id != null && id in validRelicSet) id else null }
                     }

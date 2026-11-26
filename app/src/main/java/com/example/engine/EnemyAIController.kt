@@ -640,7 +640,6 @@ object EnemyAIController {
             })
             logs.add("Sẵn Sàng Đội Hình ban cho quân tấn công của địch +1|+0!")
         }
-        s = CombatEngine.applyEnemyAttackConstellationPowers(s, chosenIds, logs)
 
         // 4. Phân bổ mục tiêu Thách Đấu (Challenger) & Dễ Bị Tổn Thương (Vulnerable) theo ThreatScore & Overwhelm
         val aiChallenges = mutableMapOf<String, String>()
@@ -687,7 +686,10 @@ object EnemyAIController {
                 }
             } else {
                 availablePlayerTargets
-                    .filter { it.keywords.contains(Keyword.VULNERABLE) && CombatSimulator.simulatePair(atk, it, s.spellStack, s).blockerDies }
+                    .filter {
+                        (it.keywords.contains(Keyword.VULNERABLE) || it.keywords.contains(Keyword.AGITATED)) &&
+                            CombatSimulator.simulatePair(atk, it, s.spellStack, s).blockerDies
+                    }
                     .maxByOrNull { CombatSimulator.threatScore(it, s) }
             }
 
@@ -700,6 +702,10 @@ object EnemyAIController {
                 }
             }
         }
+
+        // Kích hoạt Sức Mạnh Chòm Sao (vd: Anivia 6★ Tường Băng) SAU pow tấn công/Thách Đấu của bot
+        // để đảm bảo khi xác nhận thủ, kẻ địch mạnh nhất (như Fiora) bị Đóng Băng về 0 sát thương.
+        s = CombatEngine.applyEnemyAttackConstellationPowers(s, chosenIds, logs)
 
         logs.add("Địch tấn công với ${chosenIds.size} quân! Hãy chọn quân chặn.")
         var attackState = s.copy(

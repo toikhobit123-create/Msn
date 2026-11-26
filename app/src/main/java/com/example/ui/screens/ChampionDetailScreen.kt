@@ -90,6 +90,7 @@ import com.example.ui.components.LorSecondaryMetalButton
 import com.example.ui.components.RelicSlotCard
 import com.example.ui.components.cardPortraitRes
 import com.example.ui.components.championPortraitRes
+import com.example.ui.components.isFullFrameCardArt
 import com.example.ui.components.fantasyHeadingStyle
 import com.example.ui.components.interBodyStyle
 import com.example.ui.components.rarityColor
@@ -186,7 +187,7 @@ fun ChampionDetailScreen(
             Image(
                 painter = painterResource(id = splashRes),
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = if (champion.id == "champ_tryndamere") ContentScale.Fit else ContentScale.Crop,
                 alpha = 0.24f,
                 modifier = Modifier.fillMaxSize()
             )
@@ -1187,15 +1188,24 @@ private fun SlimDeckCardStrip(
             .clickable(onClick = onClick)
     ) {
         if (artRes != null) {
+            val isFullFrame = isFullFrameCardArt(card.id)
             Image(
                 painter = painterResource(id = artRes),
                 contentDescription = card.name,
-                contentScale = ContentScale.Crop,
+                contentScale = if (isFullFrame) ContentScale.Fit else ContentScale.Crop,
+                alignment = if (isFullFrame) Alignment.CenterEnd else Alignment.Center,
                 alpha = 0.72f,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(0.58f)
-                    .align(Alignment.CenterEnd)
+                modifier = if (isFullFrame) {
+                    Modifier
+                        .fillMaxHeight()
+                        .align(Alignment.CenterEnd)
+                        .padding(vertical = 2.dp, horizontal = 4.dp)
+                } else {
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(0.58f)
+                        .align(Alignment.CenterEnd)
+                }
             )
             Box(
                 modifier = Modifier

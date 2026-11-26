@@ -118,6 +118,7 @@ fun championPortraitRes(championId: String): Int? = when (championId) {
     "champ_lux" -> R.drawable.img_champ_lux
     "champ_yasuo" -> R.drawable.img_champ_yasuo
     "champ_anivia" -> R.drawable.img_champ_anivia
+    "champ_tryndamere" -> R.drawable.img_champ_tryndamere
     else -> null
 }
 
@@ -143,8 +144,10 @@ fun ChampionAvatarBadge(
             Image(
                 painter = painterResource(id = res),
                 contentDescription = "Ảnh $name",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                contentScale = if (championId == "champ_tryndamere") ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (championId == "champ_tryndamere") Modifier.padding(2.dp) else Modifier)
             )
         } else {
             Text(

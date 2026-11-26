@@ -310,11 +310,14 @@ private fun SpellSkillVfxLayer(
                 contentAlignment = Alignment.Center
             ) {
                 if (portraitRes != null) {
+                    val isFullFrame = isFullFrameCardArt(event.card.id)
                     Image(
                         painter = painterResource(id = portraitRes),
                         contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        contentScale = if (isFullFrame) ContentScale.Fit else ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(if (isFullFrame) Modifier.padding(2.dp) else Modifier)
                     )
                 } else {
                     val iconVector = when (style) {

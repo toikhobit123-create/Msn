@@ -150,6 +150,7 @@ fun PathOfChampionsApp(
                             onPlayCard = { cardId -> viewModel.playCard(cardId) },
                             onPlayTargetedCard = viewModel::playCard,
                             onChooseFollowerTransform = viewModel::chooseFollowerTransform,
+                            onChooseHandCardToShuffle = viewModel::chooseHandCardToShuffle,
                             onEnterAttack = viewModel::enterAttack,
                             onCancelAttack = viewModel::cancelAttack,
                             onToggleAttacker = viewModel::toggleAttacker,

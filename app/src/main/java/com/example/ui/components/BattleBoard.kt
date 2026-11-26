@@ -424,7 +424,8 @@ private fun SeamlessBenchZone(
                             !unit.isStunned &&
                             !unit.isShackled &&
                             (selectedChallengerUnit.keywords.contains(Keyword.CHALLENGER) ||
-                                unit.keywords.contains(Keyword.VULNERABLE))
+                                unit.keywords.contains(Keyword.VULNERABLE) ||
+                                unit.keywords.contains(Keyword.AGITATED))
                         val isTargetHighlighted = highlightedTargetIds.contains(unit.instanceId)
                         UnitToken(
                             unit = unit,
@@ -597,7 +598,7 @@ private fun SeamlessIceBattlefieldZone(
                                     combat.enemyBoard.any { it.template.type != CardType.LANDMARK && !it.isStunned && !it.isShackled }
                                 } else {
                                     combat.enemyBoard.any {
-                                        it.keywords.contains(Keyword.VULNERABLE) &&
+                                        (it.keywords.contains(Keyword.VULNERABLE) || it.keywords.contains(Keyword.AGITATED)) &&
                                             it.template.type != CardType.LANDMARK &&
                                             !it.isStunned &&
                                             !it.isShackled
@@ -1005,10 +1006,11 @@ private fun FloatingSpellStackLane(
                 contentAlignment = Alignment.Center
             ) {
                 if (portraitRes != null) {
+                    val isFullFrame = isFullFrameCardArt(item.card.id)
                     Image(
                         painter = painterResource(id = portraitRes),
                         contentDescription = item.card.name,
-                        contentScale = ContentScale.Crop,
+                        contentScale = if (isFullFrame) ContentScale.Fit else ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(2.dp)

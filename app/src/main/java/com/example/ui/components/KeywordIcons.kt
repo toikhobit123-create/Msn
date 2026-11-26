@@ -41,6 +41,7 @@ fun keywordIconRes(keyword: Keyword): Int = when (keyword) {
     Keyword.DEATHLESS -> R.drawable.ic_kw_deathless
     Keyword.EPHEMERAL -> R.drawable.ic_kw_ephemeral
     Keyword.VULNERABLE -> R.drawable.ic_kw_vulnerable
+    Keyword.AGITATED -> R.drawable.ic_kw_agitated
     Keyword.STUN -> R.drawable.ic_kw_stun
     Keyword.FROSTBITE -> R.drawable.ic_kw_frostbite
     Keyword.SILENCE -> R.drawable.ic_kw_silence

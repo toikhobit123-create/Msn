@@ -123,7 +123,7 @@ fun HomeHubScreen(
             Image(
                 painter = painterResource(id = selectedPortrait),
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = if (selectedChamp.id == "champ_tryndamere") ContentScale.Fit else ContentScale.Crop,
                 alpha = 0.18f,
                 modifier = Modifier.fillMaxSize()
             )

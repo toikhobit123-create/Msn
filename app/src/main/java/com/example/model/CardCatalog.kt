@@ -152,6 +152,48 @@ object CardCatalog {
             description = "-1 Tiêu Hao và Xuất Trận: Rút 1 lá.",
             costReduction = 1,
             onPlayDrawOne = true
+        ),
+        ItemTemplate(
+            id = "item_elixir_of_skill",
+            name = "Thuốc Tinh Thông",
+            rarity = Rarity.COMMON,
+            category = ItemCategory.TRIGGER,
+            description = "Xuất Trận: Rút 1 lá.",
+            onPlayDrawOne = true,
+            forSpellsOnly = true
+        ),
+        ItemTemplate(
+            id = "item_poro_attune",
+            name = "Bùa Hòa Hợp",
+            rarity = Rarity.COMMON,
+            category = ItemCategory.STAT_KEYWORD,
+            description = "Hòa Hợp",
+            grantedKeyword = Keyword.ATTUNE
+        ),
+        ItemTemplate(
+            id = "item_mana_potion",
+            name = "Bình Năng Lượng",
+            rarity = Rarity.COMMON,
+            category = ItemCategory.ECONOMY,
+            description = "Xuất Trận: Hồi 1 Năng Lượng.",
+            refillManaOnPlay = 1,
+            forSpellsOnly = true
+        ),
+        ItemTemplate(
+            id = "item_radiant_crest",
+            name = "Ấn Ký Rực Rỡ",
+            rarity = Rarity.RARE,
+            category = ItemCategory.TRIGGER,
+            description = "Triệu Hồi: Ban 1 từ khóa có lợi ngẫu nhiên.",
+            grantRandomKeywordOnSummon = true
+        ),
+        ItemTemplate(
+            id = "item_hearth_buckler",
+            name = "Khiên Lò Sưởi",
+            rarity = Rarity.COMMON,
+            category = ItemCategory.STAT_KEYWORD,
+            description = "+0|+1",
+            bonusHealth = 1
         )
     )
 
@@ -212,6 +254,13 @@ object CardCatalog {
             isChampion = true, levelUpRequirementText = "Đạt Khai Sáng",
             description = "Nguyên Tố. Tấn Công: Gây 1 (2 khi Thăng Cấp) sát thương lên tất cả kẻ địch và Nhà Chính của đối thủ. Trăng Trối: Hồi sinh và biến đổi ta thành Trứng Anivia.",
             levelUpPowerBonus = 1, levelUpHealthBonus = 1, rarity = Rarity.LEGENDARY
+        ),
+        CardTemplate(
+            id = "card_tryndamere", name = "Tryndamere", region = Region.FRELJORD, type = CardType.CHAMPION,
+            cost = 8, basePower = 8, baseHealth = 6, keywords = setOf(Keyword.OVERWHELM),
+            isChampion = true, levelUpRequirementText = "Khi bị hạ gục, ta sẽ Thăng cấp thay vì hy sinh.",
+            description = "Áp Đảo. THĂNG CẤP: Khi bị hạ gục, ta sẽ Thăng cấp thay vì hy sinh.",
+            levelUpPowerBonus = 1, levelUpHealthBonus = 3, rarity = Rarity.LEGENDARY
         ),
         // AI Boss Champions & Reinforcement Champions
         CardTemplate(
@@ -1058,11 +1107,102 @@ object CardCatalog {
                 scope = EffectScope.SINGLE_TARGET
             ),
             rarity = Rarity.COMMON
+        ),
+        // --- BỘ BÀI KHỞI ĐẦU TRYNDAMERE ---
+        CardTemplate(
+            id = "card_tryndamere_battle_fury", name = "Tryndamere: Cuồng Nộ Chiến Trường", region = Region.FRELJORD, type = CardType.SPELL,
+            cost = 8, spellSpeed = SpellSpeed.BURST,
+            description = "Siêu Tốc. Ban +8|+4 cho 1 đồng minh. Tạo 1 lá Tryndamere trong bộ bài.",
+            effectType = CardEffectType.TRYNDAMERE_CHAMPION_SPELL, effectValue = 8,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
+            isCollectibleReward = false, rarity = Rarity.LEGENDARY
+        ),
+        CardTemplate(
+            id = "card_elixir_of_iron", name = "Dược Phẩm Cứng Cáp", region = Region.FRELJORD, type = CardType.SPELL,
+            cost = 1, spellSpeed = SpellSpeed.BURST,
+            description = "Siêu Tốc. Trao +0|+2 cho 1 đồng minh trong vòng này. Ban +1|+1 cho lá gần nhất trong bộ bài.",
+            effectType = CardEffectType.ELIXIR_OF_IRON, effectValue = 2,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ALLY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
+            rarity = Rarity.COMMON
+        ),
+        CardTemplate(
+            id = "card_plucky_poro", name = "Poro Lè Lưỡi", region = Region.FRELJORD, type = CardType.UNIT,
+            cost = 1, basePower = 1, baseHealth = 3, keywords = emptySet(),
+            description = "Cường hóa (gốc 1|3): Khi được ban bất kỳ chỉ số nào, nhận Hồi Phục, Áp Đảo và Kiên Cường.",
+            isPoro = true, subtype = "PORO", rarity = Rarity.COMMON
+        ),
+        CardTemplate(
+            id = "card_phong_han", name = "Phong Hàn", region = Region.FRELJORD, type = CardType.SPELL,
+            cost = 2, spellSpeed = SpellSpeed.BURST,
+            keywords = setOf(Keyword.ELEMENTAL),
+            description = "Siêu Tốc • Nguyên Tố. Trao Đóng Băng và Kích Động cho 1 kẻ địch trong vòng này. Triệu hồi 1 Poro 1|1.",
+            effectType = CardEffectType.PHONG_HAN, effectValue = 1,
+            targeting = CardTargetingSpec(
+                targetType = TargetType.UNIT,
+                targetSide = TargetSide.ENEMY,
+                targetCount = 1,
+                scope = EffectScope.SINGLE_TARGET
+            ),
+            rarity = Rarity.RARE
+        ),
+        CardTemplate(
+            id = "card_yadulsk_snowdog", name = "Chó Tuyết Yadulsk", region = Region.FRELJORD, type = CardType.UNIT,
+            cost = 2, basePower = 2, baseHealth = 3, keywords = setOf(Keyword.BARRIER),
+            description = "Lá Chắn. Khi ta được triệu hồi, nhận Lá Chắn. Tấn Công: Ban +1|+1 cho 2 đồng minh gần nhất trong bộ bài.",
+            subtype = "DOG", rarity = Rarity.COMMON
+        ),
+        CardTemplate(
+            id = "card_ruthless_boar", name = "Lợn Rừng Sát Thủ", region = Region.FRELJORD, type = CardType.UNIT,
+            cost = 3, basePower = 3, baseHealth = 2, keywords = setOf(Keyword.CHALLENGER),
+            description = "Thách Đấu. Trăng Trối: Nhận 1 ngọc năng lượng rỗng.",
+            subtype = "BOAR", rarity = Rarity.COMMON
+        ),
+        CardTemplate(
+            id = "card_mighty_poro", name = "Poro Hùng Dũng", region = Region.FRELJORD, type = CardType.UNIT,
+            cost = 3, basePower = 3, baseHealth = 3, keywords = setOf(Keyword.OVERWHELM),
+            description = "Áp Đảo.",
+            isPoro = true, subtype = "PORO", rarity = Rarity.COMMON
+        ),
+        CardTemplate(
+            id = "card_avarosan_hearthguard", name = "Hỏa Bình Avarosa", region = Region.FRELJORD, type = CardType.UNIT,
+            cost = 5, basePower = 5, baseHealth = 5, keywords = setOf(Keyword.OVERWHELM),
+            description = "Áp Đảo. Khi ta được triệu hồi, ban +1|+1 cho các đồng minh trong bộ bài.",
+            rarity = Rarity.RARE
+        ),
+        CardTemplate(
+            id = "card_glacial_saurian", name = "Thần Lằn Băng Giá", region = Region.FRELJORD, type = CardType.UNIT,
+            cost = 4, basePower = 5, baseHealth = 4, keywords = setOf(Keyword.OVERWHELM),
+            description = "Áp Đảo. Khi ta được triệu hồi, ban +1|+1 cho 3 đồng minh gần nhất trong bộ bài. Nếu 1 đồng minh có nhóm bài phụ khác ta, rút một trong những bài quân đó.",
+            subtype = "REPTILE", rarity = Rarity.RARE
+        ),
+        CardTemplate(
+            id = "card_call_to_arms", name = "Lệnh Nhập Ngũ", region = Region.FRELJORD, type = CardType.SPELL,
+            cost = 5, spellSpeed = SpellSpeed.FOCUS,
+            description = "Tập Trung. Chọn 1 lá trên tay, xáo vào vị trí ngẫu nhiên trong bộ bài, sau đó rút ngẫu nhiên 1 lá bài.",
+            effectType = CardEffectType.CALL_TO_ARMS_EFFECT, effectValue = 1,
+            isCollectibleReward = false, rarity = Rarity.EPIC
         )
     ).associateBy { it.id }
 
     fun championSpellIdFor(championCardId: String): String? = when (championCardId) {
+        "card_tryndamere" -> "card_tryndamere_battle_fury"
         "card_anivia" -> "card_anivia_harsh_winds"
+        "card_jinx" -> "card_get_excited"
+        "card_lux" -> "card_prismatic_barrier"
+        "card_yasuo" -> "card_steel_tempest"
+        "card_garen" -> "card_single_combat"
+        "card_ashe" -> "card_flash_freeze"
+        "card_karma" -> "card_time_trick"
         else -> null
     }
 
@@ -1137,6 +1277,39 @@ object CardCatalog {
                 ConstellationMinorNode("anivia_reroll", "Nhãn Quang Bão Tuyết", "+1 Lượt Đổi Lại", 15, gemstoneCost = 5, bonusRerolls = 1),
                 ConstellationMinorNode("anivia_gold", "Kho Báu Băng Giá", "+50 Vàng Khởi Điểm", 15, gemstoneCost = 10, bonusStartingGold = 50)
             )
+        ),
+        ChampionTemplate(
+            id = "champ_tryndamere",
+            name = "Tryndamere",
+            title = "Bá Vương Man Di",
+            region = Region.FRELJORD,
+            cardId = "card_tryndamere",
+            archetypeSummary = "Tăng Sức Mạnh Bộ Bài • Tấn Công Áp Đảo & Bất Tử",
+            unlockFragmentCost = 0,
+            baseDeck = listOf(
+                DeckCardEntry("card_tryndamere", 2),
+                DeckCardEntry("card_elixir_of_iron", 2, listOf("item_elixir_of_skill")),
+                DeckCardEntry("card_plucky_poro", 2, listOf("item_poro_attune")),
+                DeckCardEntry("card_phong_han", 2, listOf("item_mana_potion", "item_farsight")),
+                DeckCardEntry("card_yadulsk_snowdog", 2, listOf("item_radiant_crest")),
+                DeckCardEntry("card_ruthless_boar", 2, listOf("item_pickaxe", "item_quickstrike")),
+                DeckCardEntry("card_mighty_poro", 2, listOf("item_phage")),
+                DeckCardEntry("card_avarosan_hearthguard", 2, listOf("item_hearth_buckler")),
+                DeckCardEntry("card_glacial_saurian", 2, listOf("item_farsight"))
+            ),
+            starPowers = listOf(
+                StarPowerSpec(1, "Lời Thề Chiến Tướng", "Đầu Vòng Đấu: Nếu ngươi có lượt tấn công, tạo trên tay 1 lá Lệnh Nhập Ngũ. Nếu đã có sẵn, giảm 2 tiêu hao của lá bài đó.", 10),
+                StarPowerSpec(2, "Say Máu", "+1 Năng Lượng Khởi Điểm. Khi đồng minh tấn công, ban +1|+1 cho 1 đồng minh ngẫu nhiên trong bộ bài.", 20, starCrystalCost = 2),
+                StarPowerSpec(3, "Lời Thề Chiến Tướng II", "Đầu Vòng Đấu: Tạo trên tay 1 lá Lệnh Nhập Ngũ. Nếu đã có sẵn, giảm 2 tiêu hao của lá bài đó.", 40, starCrystalCost = 5),
+                StarPowerSpec(4, "Địa Hình Hiểm Trở", "Mỗi vòng đấu, lần đầu tiên Địch Thủ triệu hồi 1 bài quân, Đóng Băng bài quân đó.", 60, starCrystalCost = 10),
+                StarPowerSpec(5, "Dòng Chảy Năng Lượng", "Bắt Đầu Trận Đấu: Nhận 1 ngọc năng lượng.", 80, starCrystalCost = 40),
+                StarPowerSpec(6, "Hiệp Ước Huyết Thống", "Khi triệu hồi 1 đồng minh, gấp đôi chỉ số của lá đó trong vòng này. Khi xuất trận Lệnh Nhập Ngũ, Tập Hợp.", 100, novaCrystalCost = 1)
+            ),
+            constellationNodes = listOf(
+                ConstellationMinorNode("trynd_hp", "Sinh Lực Man Di", "+5 Máu Tối Đa Nhà Chính", 10, gemstoneCost = 5, bonusMaxHp = 5),
+                ConstellationMinorNode("trynd_reroll", "Nhãn Quang Chiến Trường", "+1 Lượt Đổi Lại", 15, gemstoneCost = 5, bonusRerolls = 1),
+                ConstellationMinorNode("trynd_gold", "Chiến Lợi Phẩm Freljord", "+50 Vàng Khởi Điểm", 15, gemstoneCost = 10, bonusStartingGold = 50)
+            )
         )
     )
 
@@ -1185,6 +1358,11 @@ object CardCatalog {
             "reinf_anivia", "card_anivia", "Anivia — Phượng Hoàng Băng",
             "Phép Nguyên Tố, Tăng Ngọc & Khổng Lồ Khai Sáng",
             listOf("card_anivia", "card_crystal_stormbird", "card_harsh_winds")
+        ),
+        ReinforcementPackage(
+            "reinf_tryndamere", "card_tryndamere", "Tryndamere — Bá Vương Man Di",
+            "Tăng Chỉ Số Bộ Bài, Poro & Thăng Cấp Bất Tử",
+            listOf("card_tryndamere", "card_avarosan_hearthguard", "card_elixir_of_iron")
         )
     )
 }
